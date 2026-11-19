@@ -183,9 +183,19 @@ document.addEventListener("dragleave", () => { if (--profArrastre <= 0) { profAr
 document.addEventListener("dragover", (e) => e.preventDefault());
 document.addEventListener("drop", async (e) => {
   e.preventDefault(); profArrastre = 0;
-  const ficheros = [...(e.dataTransfer?.files || [])];
+  const dt = e.dataTransfer;
+  let ficheros = [...(dt?.files || [])];
+  // algunos navegadores dejan files vacio y entregan el fichero solo por items
+  if (!ficheros.length) ficheros = [...(dt?.items || [])].filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter(Boolean);
   if (!ficheros.length) {
-    mostrarSoltar("Lo soltado no es un fichero (es un enlace o un texto). Arrastralo desde el explorador de archivos del sistema, o usa «Abrir archivos» o Ctrl+V.", 6000);
+    // se dice que llego (tipos y, si es una ruta file://, que lo es): el dato para saber por que no hubo fichero
+    const tipos = [...(dt?.types || [])].join(", ") || "nada";
+    const uris = (dt?.getData("text/uri-list") || "").split(/\r?\n/).filter((l) => l && !l.startsWith("#"));
+    const ruta = uris.some((u) => u.startsWith("file:"));
+    mostrarSoltar((ruta
+      ? "El navegador entrego la ruta del archivo (file://…), no el archivo, y una pagina web no puede leer un archivo por su ruta."
+      : "Lo soltado no es un fichero (es un enlace o un texto).") +
+      ` Usa «Abrir archivos» o Ctrl+V. (Recibido: ${tipos})`, 9000);
     return;
   }
   $("soltar").hidden = true;
