@@ -1,0 +1,577 @@
+<!doctype html>
+<!--
+  perspectiva.html — Perspectiva: rectificacion (homografia) y analisis de imagenes o
+  fotogramas de video, con panel de configuracion acoplable (der/izq/arriba/abajo),
+  carrusel de fotogramas, geometria por esquinas o aristas, interpolacion, color, ruido,
+  movimiento, luminancia, histograma de color, apilado, analisis hexadecimal, metadatos de cualquier fichero y
+  exportacion multi-formato. Acepta cualquier fichero: las herramientas de imagen se activan
+  con una imagen o un fotograma; la captura, con un video.
+  Offline: los archivos no salen del navegador. Registro JSON reproducible.
+  Author: Saul López
+  Date:   2026-11-13
+  Modified By: Saul López
+  Modified Date: 2026-11-19
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perspectiva</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 9 L28 4 L26 28 L6 24 Z' fill='none' stroke='%235aa9ff' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+  /* ---- tokens: superficies planas, un acento, texto en dos niveles ---- */
+  :root {
+    --bg:#0d0f12; --sup:#14171b; --sup2:#1a1e23; --linea:#242930; --linea2:#2f353d;
+    --txt:#e4e7eb; --tenue:#858d97; --acento:#7aa7ff; --acento-txt:#0b1220; --ok:#7ed6a8; --aviso:#e8be5c;
+    --lienzo:#060708; --radio:8px; --panel-ancho:380px; --panel-alto:300px; --cab:48px;
+    --mono:ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", Menlo, monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--txt); overflow:hidden;
+         font:13px/1.45 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased; }
+  ::selection { background:rgba(122,167,255,.3); }
+  * { scrollbar-width:thin; scrollbar-color:var(--linea2) transparent; }
+
+  /* ---- cabecera ---- */
+  header { height:var(--cab); display:flex; gap:8px; align-items:center; padding:0 14px; background:var(--sup); border-bottom:1px solid var(--linea); }
+  header h1 { font-size:14px; font-weight:600; margin:0 8px 0 0; white-space:nowrap; letter-spacing:.01em; }
+  header h1 small { color:var(--tenue); font-weight:400; margin-left:8px; font-size:12px; }
+  .archivo { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border-radius:var(--radio); cursor:pointer;
+             background:var(--acento); color:var(--acento-txt); font-weight:600; white-space:nowrap; }
+  .archivo:hover { filter:brightness(1.08); }
+  .archivo input, .boton-archivo input { display:none; }
+  #panel label.boton-archivo { display:inline-flex; width:auto; flex:none; margin:0; padding:4px 10px; border:1px solid var(--linea2); border-radius:6px;
+    color:var(--txt); cursor:pointer; font-size:12px; white-space:nowrap; }
+  #panel label.boton-archivo:hover { background:var(--sup2); border-color:var(--tenue); }
+  #estado { color:var(--tenue); margin-left:auto; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #ocupado { color:var(--aviso); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .dock { display:inline-flex; border:1px solid var(--linea); border-radius:var(--radio); overflow:hidden; }
+  .dock button { border:0; border-radius:0; height:28px; padding:0 8px; background:transparent; color:var(--tenue); }
+  .dock button:hover { background:var(--sup2); color:var(--txt); }
+  .dock button.activo { background:var(--sup2); color:var(--acento); }
+
+  /* ---- distribucion con panel acoplable ---- */
+  #app { height:calc(100% - var(--cab)); display:grid; }
+  body.dock-right  #app { grid-template-columns:minmax(0,1fr) var(--panel-ancho); grid-template-areas:"area panel"; }
+  body.dock-left   #app { grid-template-columns:var(--panel-ancho) minmax(0,1fr); grid-template-areas:"panel area"; }
+  body.dock-top    #app { grid-template-rows:var(--panel-alto) minmax(0,1fr); grid-template-areas:"panel" "area"; }
+  body.dock-bottom #app { grid-template-rows:minmax(0,1fr) var(--panel-alto); grid-template-areas:"area" "panel"; }
+  body.panel-oculto { --panel-ancho:0px; --panel-alto:0px; }
+  body.panel-oculto #panel { visibility:hidden; }
+  #area { grid-area:area; overflow:auto; padding:12px 14px 18px; min-width:0; min-height:0; }
+  /* el panel no hace scroll: lo hace .contenido; asi el asa queda fija aunque se baje por el panel */
+  #panel { grid-area:panel; position:relative; overflow:hidden; background:var(--bg); border-color:var(--linea); border-style:solid; border-width:0; min-width:0; min-height:0; }
+  #panel > .contenido { height:100%; overflow:auto; padding:12px; container-type:inline-size; }
+  /* dentro del panel: una columna; dos solo si el panel es ancho (consulta de contenedor) */
+  #panel .grid2 { grid-template-columns:minmax(0,1fr); }
+  @container (min-width:560px) { #panel .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
+  #panel details.bloque { min-width:0; max-width:100%; }
+  #panel label { white-space:nowrap; min-width:0; }
+  #panel label select, #panel label input[type=number], #panel .fila > select { min-width:0; flex:1 1 auto; width:auto; }
+  #panel .fila > select { max-width:100%; }
+  #panel .cuerpo { overflow-wrap:anywhere; }
+  #panel input[type=range] { min-width:30px; flex:1 1 40px; }
+  #panel label .v { min-width:2.6em; flex:0 0 auto; }
+  #panel input[type=file] { min-width:0; max-width:100%; width:100%; font-size:11px; }
+  #panel label:has(input[type=file]) { white-space:normal; overflow-wrap:normal; }
+  body.dock-right #panel { border-left-width:1px; } body.dock-left #panel { border-right-width:1px; }
+  body.dock-top #panel { border-bottom-width:1px; } body.dock-bottom #panel { border-top-width:1px; }
+  body.dock-top #panel .contenido, body.dock-bottom #panel .contenido { display:flex; gap:10px; align-items:flex-start; }
+  body.dock-top #panel details.bloque, body.dock-bottom #panel details.bloque { flex:0 0 360px; width:360px; }
+  body.dock-right #panel .contenido, body.dock-left #panel .contenido { display:flex; flex-direction:column; gap:8px; }
+  #asa { position:absolute; z-index:20; background:transparent; transition:background .15s; }
+  #asa:hover, #asa.activo { background:rgba(122,167,255,.35); }
+  body.dock-right #asa { left:0; top:0; bottom:0; width:5px; cursor:ew-resize; }
+  body.dock-left #asa { right:0; top:0; bottom:0; width:5px; cursor:ew-resize; }
+  body.dock-top #asa { bottom:0; left:0; right:0; height:5px; cursor:ns-resize; }
+  body.dock-bottom #asa { top:0; left:0; right:0; height:5px; cursor:ns-resize; }
+
+  /* ---- carrusel 3D ---- */
+  .carruselBarra { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  #carrusel { position:relative; flex:1; height:132px; perspective:900px; perspective-origin:50% 40%; overflow:hidden; }
+  .hoja { position:absolute; top:6px; margin:0; width:150px; transform-style:preserve-3d; cursor:pointer;
+          translate:-75px 0; transition:transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s; }
+  .hoja img { width:150px; height:92px; object-fit:contain; background:var(--lienzo); border:1px solid var(--linea); border-radius:6px; display:block; }
+  .hoja.actual img { border-color:var(--acento); box-shadow:0 0 0 1px var(--acento); }
+  .hoja figcaption { font-size:10px; color:var(--tenue); text-align:center; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  [hidden] { display:none !important; } /* una clase con display (.fila: flex) no debe anular el atributo hidden */
+  .vacio { color:var(--tenue); text-align:center; padding-top:50px; font-size:12px; }
+  .hoja .quitar { position:absolute; top:-6px; right:-6px; width:20px; height:20px; padding:0; border-radius:50%; font-size:11px; line-height:18px;
+                  background:var(--sup2); border:1px solid var(--linea); color:var(--txt); opacity:0; transition:opacity .15s; }
+  .hoja:hover .quitar, .hoja.actual .quitar { opacity:1; }
+  #ayuda { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
+  #ayuda[hidden] { display:none; }
+  #ayuda .ventana { background:var(--sup); color:var(--txt); border:1px solid var(--linea); border-radius:var(--radio); width:min(980px,100%);
+                    max-height:92vh; display:flex; flex-direction:column; }
+  #ayuda .cab { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--linea); }
+  #ayuda .cab h1 { font-size:15px; margin:0; flex:1; }
+  #ayudaCuerpo { overflow:auto; padding:4px 18px 18px; font-size:13px; line-height:1.55; }
+  #ayudaCuerpo table { border-collapse:collapse; width:100%; margin:8px 0; }
+  #ayudaCuerpo th, #ayudaCuerpo td { border:1px solid var(--linea); padding:4px 6px; text-align:left; vertical-align:top; }
+  #ayudaCuerpo h3 { margin-top:22px; } #ayudaCuerpo code { font-family:var(--mono); font-size:12px; }
+
+  /* las columnas no crecen con el contenido: un canvas ampliado hace scroll dentro de su marco */
+  .trabajo { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:10px; }
+  .trabajo > details { min-width:0; }
+  /* lienzo plegado: la salida ocupa todo el ancho y gana alto */
+  .trabajo:has(> #bloqueLienzo:not([open])) { grid-template-columns:minmax(0,1fr); }
+  .trabajo:has(> #bloqueLienzo:not([open])) #salidaWrap { height:74vh; }
+  @media (max-width:1100px) { .trabajo { grid-template-columns:minmax(0,1fr); } }
+
+  /* ---- tarjetas plegables ---- */
+  details.bloque { background:var(--sup); border:1px solid var(--linea); border-radius:10px; }
+  details.bloque > summary { list-style:none; cursor:pointer; padding:9px 12px; display:flex; align-items:center; gap:8px;
+                             font-weight:600; font-size:12.5px; user-select:none; border-radius:10px; }
+  details.bloque > summary:hover { background:var(--sup2); }
+  details.bloque > summary::-webkit-details-marker { display:none; }
+  details.bloque > summary::before { content:""; width:6px; height:6px; border-right:1.5px solid var(--tenue); border-bottom:1.5px solid var(--tenue);
+                                     transform:rotate(-45deg); transition:transform .2s; flex:none; margin-right:2px; }
+  details.bloque[open] > summary::before { transform:rotate(45deg); }
+  details.bloque[open] > summary { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+  details.bloque > summary .sub { color:var(--tenue); font-weight:400; font-size:11.5px; margin-left:auto; font-variant-numeric:tabular-nums;
+                                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .cuerpo { padding:6px 12px 12px; }
+  details summary.ayuda { cursor:pointer; }
+
+  /* marcos de imagen de alto FIJO: el zoom cambia la imagen, no el marco */
+  #fuenteWrap { position:relative; height:58vh; min-height:300px; overflow:hidden; border-radius:var(--radio); background:var(--lienzo); cursor:crosshair; }
+  #fuente { width:100%; height:100%; display:block; }
+  #fuenteWrap:not(:hover) #lupa { opacity:0; }
+  #lupa { position:absolute; transition:opacity .15s; right:8px; top:8px; width:150px; height:150px; border:1px solid rgba(122,167,255,.6); border-radius:6px; background:#000; pointer-events:none; }
+  .barraLienzo { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  #salidaWrap { position:relative; height:58vh; min-height:300px; overflow:hidden; background:var(--lienzo); border-radius:var(--radio); cursor:grab; touch-action:none; }
+  #salidaWrap.arrastrando { cursor:grabbing; }
+  .vacioSalida { position:absolute; inset:0; margin:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px;
+                 color:var(--tenue); font-size:13px; line-height:1.6; pointer-events:none; }
+  .vacioSalida:empty { display:none; }
+  .histo { margin-top:8px; }
+  #histo { width:100%; height:84px; display:block; background:var(--lienzo); border-radius:var(--radio); }
+  #histoInfo { font:11px/1.4 var(--mono); margin:0; white-space:pre; }
+  #salida { image-rendering:pixelated; display:block; position:absolute; left:0; top:0; }
+  video { width:100%; max-height:220px; background:var(--lienzo); border-radius:var(--radio); }
+
+  /* ---- controles ---- */
+  label { display:flex; align-items:center; gap:8px; margin:4px 0; color:var(--tenue); font-size:12.5px; }
+  label .v { color:var(--txt); min-width:3em; text-align:right; font-variant-numeric:tabular-nums; font-size:12px; }
+  input[type=range] { flex:1; min-width:60px; accent-color:var(--acento); height:16px; }
+  input[type=checkbox], input[type=radio] { accent-color:var(--acento); margin:0; }
+  input[type=number], input[type=text], select { background:var(--sup2); color:var(--txt); border:1px solid var(--linea); border-radius:6px;
+                                                 padding:4px 7px; max-width:100%; font:inherit; font-size:12.5px; outline:none; }
+  input[type=number]:focus, input[type=text]:focus, select:focus { border-color:var(--acento); }
+  input[type=number] { width:6em; font-variant-numeric:tabular-nums; }
+  button { background:transparent; color:var(--txt); border:1px solid var(--linea2); border-radius:6px; padding:5px 10px; cursor:pointer;
+           font:inherit; font-size:12.5px; transition:background .15s, border-color .15s; }
+  button:hover { background:var(--sup2); border-color:var(--tenue); }
+  button:focus-visible, summary:focus-visible { outline:2px solid var(--acento); outline-offset:1px; }
+  button.primario { background:var(--acento); color:var(--acento-txt); border-color:var(--acento); font-weight:600; }
+  button.primario:hover { filter:brightness(1.08); background:var(--acento); }
+  button.chico { padding:3px 8px; font-size:12px; }
+  .fila { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:8px 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:2px 14px; }
+  /* en el area de trabajo, dos columnas solo si caben; si no, una (antes "alto px" se salia del bloque) */
+  #area .grid2 { grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); }
+  #area .grid2 > *, #area label { min-width:0; }
+  table.pts { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; font-size:12px; }
+  table.pts td { padding:3px 4px; border-bottom:1px solid var(--linea); }
+  table.pts input { width:5.5em; }
+  .p1{color:#ff7a7a}.p2{color:#ffd45e}.p3{color:#6be6a0}.p4{color:#7aa7ff}
+  .ayuda { color:var(--tenue); font-size:11.5px; margin:6px 0; }
+  .aviso { color:var(--aviso); font-size:12px; margin:0 0 8px; }
+  .aviso:empty { display:none; }
+  .etiqueta { display:inline-block; padding:1px 8px; border-radius:999px; background:var(--sup2); border:1px solid var(--linea); font-size:11px; color:var(--tenue); font-variant-numeric:tabular-nums; }
+  pre { background:var(--lienzo); border:1px solid var(--linea); border-radius:var(--radio); padding:8px 10px; font:11px/1.5 var(--mono);
+        color:#c9ced4; overflow:auto; max-height:340px; margin:0; white-space:pre-wrap; word-break:break-word; }
+  .segmentado { display:inline-flex; border:1px solid var(--linea2); border-radius:6px; overflow:hidden; }
+  .segmentado label { margin:0; padding:3px 10px; cursor:pointer; font-size:12px; }
+  .segmentado input { display:none; }
+  .segmentado label:has(input:checked) { background:var(--sup2); color:var(--acento); }
+  /* el boton de restablecer va siempre al extremo derecho de la cabecera, lejos del titulo */
+  .reset { margin-left:auto; padding:0 6px; font-size:12px; line-height:18px; border-color:transparent; color:var(--tenue); }
+  .reset:hover { color:var(--txt); }
+  details.bloque > summary .sub + .reset { margin-left:8px; }
+  /* sin imagen ni fotograma: las herramientas de imagen se ven pero no se accionan */
+  body.sin-imagen [data-requiere="imagen"] { opacity:.35; pointer-events:none; filter:grayscale(1); }
+  body.sin-imagen #panel [data-requiere="imagen"] { display:none; } /* el panel muestra solo lo que sirve: metadatos */
+  #incrustables:empty { display:none; }
+  table.ranking td { padding:2px 4px; cursor:pointer; }
+  .celdaChar { display:inline-block; min-width:1.2em; text-align:center; color:#fff; border-radius:3px; margin-right:1px; font:11px var(--mono); }
+  ul.exportados { margin:6px 0 0; padding-left:16px; font-size:11px; color:var(--tenue); word-break:break-all; }
+</style>
+</head>
+<body class="dock-right">
+<header>
+  <h1>Perspectiva<small>imagen · video · sin conexion</small></h1>
+  <label class="archivo" title="Imagen, video u otro fichero: de los demas se muestran metadatos y analisis hex">Abrir archivos<input type="file" id="archivo" multiple></label>
+  <button id="btnPegar" title="Pegar imagen del portapapeles (tambien Ctrl+V)">Pegar</button>
+  <span id="ocupado"></span>
+  <span id="estado">Arrastra, pega o elige archivos</span>
+  <button id="btnAyuda" title="Manual de uso (F1 o ?)">Ayuda</button>
+  <button id="btnPanel" title="Mostrar/ocultar panel (P)">Panel</button>
+  <span class="dock" title="Posicion del panel">
+    <button data-dock="left" title="Izquierda">◧</button><button data-dock="right" title="Derecha">◨</button>
+    <button data-dock="top" title="Arriba">⬒</button><button data-dock="bottom" title="Abajo">⬓</button>
+  </span>
+</header>
+
+<div id="app">
+  <section id="area">
+    <div class="carruselBarra">
+      <button class="chico" id="btnAnterior" title="Anterior ( , )">◀</button>
+      <div id="carrusel"><div class="vacio">Los fotogramas e imagenes apareceran aqui como hojas</div></div>
+      <button class="chico" id="btnSiguiente" title="Siguiente ( . )">▶</button>
+      <button class="chico" id="btnAnadir" title="Anadir archivos: imagenes, videos o documentos">＋</button>
+    </div>
+    <p class="aviso" id="avisoHerramientas"></p>
+    <div class="trabajo" data-requiere="imagen">
+      <details class="bloque" open id="bloqueLienzo">
+        <summary>Lienzo y geometria <span class="sub" id="infoGeo"></span></summary>
+        <div class="cuerpo">
+          <div class="barraLienzo">
+            <span class="segmentado">
+              <label title="La imagen entera, sin rectificar"><input type="radio" name="modoGeo" value="completa"> imagen completa</label>
+              <label title="Un rectangulo (dos esquinas opuestas), sin rectificar"><input type="radio" name="modoGeo" value="recorte"> recorte</label>
+              <label><input type="radio" name="modoGeo" value="esquinas" checked> 4 esquinas</label>
+              <label><input type="radio" name="modoGeo" value="aristas"> 4 aristas</label>
+              <label title="4 o mas puntos del objeto con su posicion real: minimos cuadrados con residuo"><input type="radio" name="modoGeo" value="control"> N puntos</label>
+            </span>
+            <label><input type="checkbox" id="autoOrden" checked> ordenar</label>
+            <button class="chico" id="btnReiniciar">reiniciar</button>
+            <span style="flex:1"></span>
+            <button class="chico" id="zMas">＋</button><button class="chico" id="zMenos">－</button>
+            <button class="chico" id="zAjustar">ajustar</button><button class="chico" id="z11">1:1</button><span class="etiqueta" id="zNivel">100%</span>
+          </div>
+          <div id="fuenteWrap"><canvas id="fuente"></canvas><canvas id="lupa" width="150" height="150"></canvas></div>
+          <div class="fila" id="barraControl" hidden>
+            <label>siguiente punto <select id="refControl"></select></label>
+            <span id="refManual" hidden><label>X <input type="number" id="refX" value="15" step="0.1"></label><label>Y <input type="number" id="refY" value="7.5" step="0.1"> cm</label></span>
+            <span class="ayuda" id="infoControl"></span>
+          </div>
+          <p class="ayuda" id="ayudaGeo"></p>
+          <details><summary class="ayuda">coordenadas</summary><table class="pts"><tbody id="tablaPts"></tbody></table></details>
+        </div>
+      </details>
+      <details class="bloque" open>
+        <summary>Salida <span class="sub" id="infoSalida"></span></summary>
+        <div class="cuerpo">
+          <div id="salidaWrap"><canvas id="salida" width="300" height="150"></canvas><p class="vacioSalida" id="salidaVacia"></p></div>
+          <div class="grid2" style="margin-top:6px">
+            <label title="Rueda sobre la salida: zoom hacia el cursor. Arrastrar: mover. Doble clic: ajustar">zoom <input type="range" id="zoomSalida" min="0.25" max="16" step="any" value="3"><span class="v" id="vZoom"></span><button class="chico" id="btnAjustarSalida" type="button">ajustar</button><button class="chico" id="btnAmpliarSalida" type="button" title="Plegar el lienzo y dar todo el espacio a la salida (otra vez: volver)">⤢</button></label>
+            <label>alto px <input type="range" data-p="altoPx" min="40" max="600" value="160"><span class="v" data-v="altoPx"></span></label>
+          </div>
+          <div class="histo">
+            <canvas id="histo"></canvas>
+            <div class="fila"><span class="ayuda" id="histoInfo"></span><span style="flex:1"></span>
+              <select id="histoAmbito" title="Region: lo que se ve tras los ajustes. Completa: la imagen o fotograma original, sin ajustes">
+                <option value="region">salida (lo que se ve)</option><option value="completa">imagen completa</option></select>
+              <label title="Contorno discontinuo: la entrada al ajuste de color, antes de los filtros"><input type="checkbox" id="histoRef"> entrada</label>
+              <label><input type="checkbox" id="histoLog"> log</label></div>
+          </div>
+          <div class="fila"><button class="primario" id="btnExportarRapido">Guardar (formato del panel)</button><button id="btnCopiarRapido">Copiar</button><span class="ayuda" id="hashInfo"></span></div>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <aside id="panel">
+    <div id="asa" title="Arrastra para redimensionar"></div>
+    <div class="contenido">
+      <details class="bloque" id="bloqueSesion" data-requiere="imagen">
+        <summary>Configuracion entre imagenes</summary>
+        <div class="cuerpo">
+          <label>al cambiar de imagen <select id="modoConfig">
+            <option value="cero" selected title="cada imagen tiene sus propios ajustes">solo esta imagen</option>
+            <option value="copiar" title="cada imagen con sus ajustes; una nueva empieza con los de la anterior">la nueva parte de la anterior</option>
+            <option value="mantener" title="un cambio se aplica a todas las imagenes">los mismos para todas</option></select></label>
+          <div class="fila"><label><input type="checkbox" id="copiarGeo" checked> copiar geometria del anterior</label>
+            <button class="chico" id="btnResetTodo" title="Todos los controles a sus valores por defecto">↺ todo</button></div>
+          <p class="ayuda" id="infoConfig"></p>
+        </div>
+      </details>
+      <details class="bloque" id="bloqueVideo" hidden>
+        <summary>Video <span class="sub" id="tVideo">fot. 0 · t = 0.000 s</span></summary>
+        <div class="cuerpo">
+          <div class="fila"><select id="selVideo"></select></div>
+          <video id="video" controls muted playsinline preload="auto"></video>
+          <div class="fila">
+            <button id="btnFotAnt">◀ 1 fot.</button><button id="btnFotSig">1 fot. ▶</button>
+            <label>fps <input type="number" id="fps" value="30" step="any" min="1"></label>
+            <button class="primario" id="btnCapturar">Capturar</button>
+          </div>
+          <div class="fila"><span class="etiqueta" id="fotVideo">fotograma 0 / 0</span>
+            <button class="chico" id="btnDesdeAqui" title="Rango: desde el fotograma actual">⇤ desde aqui</button>
+            <button class="chico" id="btnHastaAqui" title="Rango: hasta el fotograma actual">hasta aqui ⇥</button></div>
+          <div class="fila"><span class="ayuda" id="fpsMedido">fps: reproduce unos segundos para medirlos</span><button class="chico" id="btnUsarFps">usar</button></div>
+          <div class="fila"><span class="ayuda" id="fpsContenedor"></span></div>
+          <div class="fila"><label>capturar <input type="number" id="nRango" value="10" min="1" max="600" style="width:5em"> fot.</label>
+            <button id="btnRangoAqui">desde el actual</button></div>
+          <div class="fila"><label title="Busca en cada fotograma capturado (suelto o en rango, del mismo video) los puntos marcados en el de partida: si el objeto o la camara se mueven, los puntos lo siguen (correlacion NCC subpixel)"><input type="checkbox" id="autoSeguir" checked> al capturar: seguir los puntos del fotograma anterior</label>
+            <label><input type="checkbox" id="autoApilar"> y apilarlos</label></div>
+          <div class="fila">
+            <label>desde <input type="number" id="rDesde" step="0.01" value="0"></label>
+            <label>hasta <input type="number" id="rHasta" step="0.01" value="1"> s</label>
+            <label>cada <input type="number" id="rPaso" value="1" min="1" style="width:4em"> fot.</label>
+            <button id="btnRango">Capturar rango</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="bloque" open data-requiere="imagen">
+        <summary>Exportar <span class="sub" id="infoExport"></span></summary>
+        <div class="cuerpo">
+          <div class="grid2">
+            <label>formato <select id="formatoExp"></select></label>
+            <label>calidad <input type="range" id="calidadExp" min="0.5" max="1" step="0.01" value="0.95"><span class="v" id="vCalidad"></span></label>
+            <label>contenido <select id="contenidoExp">
+              <option value="salida">salida</option><option value="salidaPlantilla">salida + plantilla</option>
+              <option value="fuente">fuente/fotograma original</option><option value="pila">apilado (sin ajustes)</option></select></label>
+            <label>escala <select id="escalaExp"><option value="1">1x (pixeles reales)</option><option value="2">2x</option><option value="4">4x</option><option value="8">8x</option></select></label>
+          </div>
+          <p class="aviso" id="avisoExp"></p>
+          <div class="fila"><button class="primario" id="btnExportar">Guardar imagen</button><button id="btnCopiar" title="Copia como PNG al portapapeles">Copiar</button><button id="btnJson">Registro JSON</button><button id="btnInforme" title="HTML autocontenido para revisar o repetir el analisis (documento de trabajo)">Informe de analisis</button>
+            <label class="boton-archivo" title="Reproduce una rectificacion desde su registro JSON">Reproducir JSON<input type="file" id="cargarJson" accept=".json"></label></div>
+          <ul class="exportados" id="listaExport"></ul>
+        </div>
+      </details>
+
+      <details class="bloque" open data-requiere="imagen">
+        <summary>Forma e interpolacion</summary>
+        <div class="cuerpo">
+          <div class="fila">
+            <select id="preset">
+              <option value="30x15" title="AG 134-2014, fuente secundaria">Guatemala vehiculo 30 x 15 cm</option>
+              <option value="21x12" title="AG 111-95, fuente secundaria">Guatemala moto 21 x 12 cm</option>
+              <option value="30.5x15.2">EE.UU./America 30.5 x 15.2 cm</option>
+              <option value="52x11">Union Europea 52 x 11 cm</option>
+              <option value="libre">Personalizada…</option>
+              <option value="auto">Automatico: aspecto estimado de las 4 esquinas (foto sin recortar)</option>
+            </select>
+            <label>ancho <input type="number" data-p="anchoCm" value="30" step="0.1"></label>
+            <label>alto <input type="number" data-p="altoCm" value="15" step="0.1"> cm</label>
+          </div>
+          <div class="grid2">
+            <label>interpolacion <select data-p="interp">
+              <option value="vecino" selected title="vecino mas cercano: copia los pixeles originales">ninguna (pixeles originales)</option><option value="bilineal">bilineal</option>
+              <option value="bicubica">bicubica (Catmull-Rom)</option><option value="escalera">en escalera (x2 bicubica)</option>
+              <option value="lanczos3">Lanczos-3</option><option value="mitchell">Mitchell-Netravali</option>
+              <option value="bspline">B-spline cubica (abierta, tipo S-Spline)</option>
+              <option disabled>S-Spline (comercial, no disponible)</option><option disabled>Genuine Fractals (comercial, no disponible)</option>
+            </select></label>
+            <label>margen % <input type="range" data-p="margenPct" min="0" max="25" value="0"><span class="v" data-v="margenPct"></span></label>
+            <label>rotacion ° <input type="range" data-p="giroFino" min="-180" max="180" step="0.1" value="0"><span class="v" data-v="giroFino"></span></label>
+            <div class="fila"><button class="chico" id="btnMenos90">-90°</button><button class="chico" id="btnMas90">+90°</button></div>
+            <label title="+ estrecha el borde superior, - el inferior">trapecio ↕ % <input type="range" data-p="trapH" min="-40" max="40" step="0.5" value="0"><span class="v" data-v="trapH"></span></label>
+            <label title="+ estrecha el borde izquierdo, - el derecho">trapecio ↔ % <input type="range" data-p="trapV" min="-40" max="40" step="0.5" value="0"><span class="v" data-v="trapV"></span></label>
+            <div class="fila"><label><input type="checkbox" data-p="espejo"> espejo horizontal ↔</label><label><input type="checkbox" data-p="espejoV"> espejo vertical ↕</label></div>
+          </div>
+          <p class="ayuda" id="descNucleo"></p>
+        </div>
+      </details>
+
+      <details class="bloque" data-requiere="imagen">
+        <summary>Color <span class="sub">canales · balance · tono</span></summary>
+        <div class="cuerpo">
+          <div class="grid2">
+            <label>ganancia R <input type="range" data-p="gananciaR" min="0" max="3" step="0.01" value="1"><span class="v" data-v="gananciaR"></span></label>
+            <label>ganancia G <input type="range" data-p="gananciaG" min="0" max="3" step="0.01" value="1"><span class="v" data-v="gananciaG"></span></label>
+            <label>ganancia B <input type="range" data-p="gananciaB" min="0" max="3" step="0.01" value="1"><span class="v" data-v="gananciaB"></span></label>
+            <label>temperatura <input type="range" data-p="temperatura" min="-100" max="100" value="0"><span class="v" data-v="temperatura"></span></label>
+            <label>saturacion <input type="range" data-p="saturacion" min="0" max="3" step="0.01" value="1"><span class="v" data-v="saturacion"></span></label>
+            <label>tono ° <input type="range" data-p="tono" min="-180" max="180" value="0"><span class="v" data-v="tono"></span></label>
+            <label>gris desde <select data-p="modoGris">
+              <option value="color" selected>normal (color, sin gris)</option>
+              <option value="bt601">luminancia BT.601</option><option value="R">canal R (azul/negro sobre blanco)</option>
+              <option value="G">canal G</option><option value="B">canal B (rojo/amarillo)</option><option value="mezcla">mezclador</option></select></label>
+            <span></span>
+            <label>mezcla R <input type="range" data-p="mezclaR" min="-2" max="2" step="0.05" value="1"><span class="v" data-v="mezclaR"></span></label>
+            <label>mezcla G <input type="range" data-p="mezclaG" min="-2" max="2" step="0.05" value="0"><span class="v" data-v="mezclaG"></span></label>
+            <label>mezcla B <input type="range" data-p="mezclaB" min="-2" max="2" step="0.05" value="0"><span class="v" data-v="mezclaB"></span></label>
+            <button class="chico" id="btnColorNeutro" type="button">restablecer color</button>
+          </div>
+          <p class="ayuda">Texto azul sobre fondo blanco → prueba "canal R". Elegir un gris o mover el mezclador activa "escala de grises"; "normal (color)" la quita.</p>
+        </div>
+      </details>
+
+      <details class="bloque" data-requiere="imagen">
+        <summary>Ruido y movimiento</summary>
+        <div class="cuerpo grid2">
+          <label>ruido <select data-p="ruido"><option value="no">ninguno</option><option value="mediana">mediana</option><option value="gaussiano">gaussiano</option><option value="bilateral">bilateral</option></select></label>
+          <label>radio <input type="range" data-p="ruidoRadio" min="1" max="5" value="1"><span class="v" data-v="ruidoRadio"></span></label>
+          <label>rango bilateral <input type="range" data-p="ruidoRango" min="5" max="80" value="25"><span class="v" data-v="ruidoRango"></span></label><span></span>
+          <label><input type="checkbox" data-p="movimiento"> deconvolucion de movimiento</label><span></span>
+          <label>longitud px <input type="range" data-p="movLong" min="1" max="31" value="5"><span class="v" data-v="movLong"></span></label>
+          <label>angulo ° <input type="range" data-p="movAng" min="-90" max="90" value="0"><span class="v" data-v="movAng"></span></label>
+          <label>iteraciones <input type="range" data-p="movIters" min="1" max="60" value="15"><span class="v" data-v="movIters"></span></label>
+        </div>
+      </details>
+
+      <details class="bloque" open data-requiere="imagen">
+        <summary>Luminancia y nitidez</summary>
+        <div class="cuerpo grid2">
+          <label><input type="checkbox" data-p="gris"> escala de grises</label>
+          <label>vista <select data-p="vista"><option value="normal">normal</option><option value="sobel">gradiente (Sobel)</option></select></label>
+          <label>campo plano <select data-p="campoPlano"><option value="no">no</option><option value="dividir">dividir fondo</option><option value="restar">restar fondo</option></select></label>
+          <label>radio fondo <input type="range" data-p="campoSigma" min="2" max="60" value="15"><span class="v" data-v="campoSigma"></span></label>
+          <label><input type="checkbox" data-p="clahe"> CLAHE</label>
+          <label>limite <input type="range" data-p="claheClip" min="1" max="8" step="0.5" value="2.5"><span class="v" data-v="claheClip"></span></label>
+          <label>teselas x <input type="range" data-p="claheTx" min="1" max="8" value="4"><span class="v" data-v="claheTx"></span></label>
+          <label>teselas y <input type="range" data-p="claheTy" min="1" max="6" value="2"><span class="v" data-v="claheTy"></span></label>
+          <label><input type="checkbox" data-p="autoNiveles"> auto-niveles</label><span></span>
+          <label>negro <input type="range" data-p="negro" min="0" max="254" value="0"><span class="v" data-v="negro"></span></label>
+          <label>blanco <input type="range" data-p="blanco" min="1" max="255" value="255"><span class="v" data-v="blanco"></span></label>
+          <label>gamma <input type="range" data-p="gamma" min="0.2" max="3" step="0.05" value="1"><span class="v" data-v="gamma"></span></label>
+          <label>brillo <input type="range" data-p="brillo" min="-100" max="100" value="0"><span class="v" data-v="brillo"></span></label>
+          <label>contraste <input type="range" data-p="contraste" min="-100" max="200" value="0"><span class="v" data-v="contraste"></span></label>
+          <label>nitidez <input type="range" data-p="enfoque" min="0" max="300" value="0"><span class="v" data-v="enfoque"></span></label>
+          <label>radio nitidez <input type="range" data-p="radioEnf" min="1" max="8" value="2"><span class="v" data-v="radioEnf"></span></label>
+          <label><input type="checkbox" data-p="binarizar"> binarizar</label>
+          <label>umbral <input type="range" data-p="umbral" min="0" max="255" value="128"><span class="v" data-v="umbral"></span></label>
+          <label><input type="checkbox" data-p="negativo"> negativo</label>
+        </div>
+      </details>
+
+      <details class="bloque" data-requiere="imagen">
+        <summary>Plantilla de hipotesis <span class="sub" id="formato"></span></summary>
+        <div class="cuerpo">
+          <div class="fila"><input type="text" id="plantilla" placeholder="p. ej. P123BCD" style="flex:1"></div>
+          <div class="grid2">
+            <label>fuente <select id="fuenteTxt"><option>DejaVu Sans Mono</option><option>Arial Black</option><option>Arial</option><option>monospace</option></select></label>
+            <label class="boton-archivo" title="Cargar una fuente TTF/OTF/WOFF">Cargar fuente<input type="file" id="ttf" accept=".ttf,.otf,.woff,.woff2"></label>
+            <label>opacidad <input type="range" id="opPlantilla" min="0" max="100" value="45"></label>
+            <label>alto texto % <input type="range" step="any" id="altoTxt" min="5" max="95" value="55"><span class="v" id="vAltoTxt"></span></label>
+            <label title="Estira o estrecha en horizontal">ancho texto % <input type="range" step="any" id="anchoTxt" min="5" max="200" value="100"><span class="v" id="vAnchoTxt"></span></label>
+            <label title="Alarga o achata en vertical sin cambiar el ancho">estirar ↕ % <input type="range" step="any" id="estVTxt" min="20" max="300" value="100"><span class="v" id="vEstVTxt"></span></label>
+            <label title="Engorda (+) o adelgaza (-) el trazo, en % del alto del texto">grosor % <input type="range" step="any" id="grosorTxt" min="-10" max="10" value="0"><span class="v" id="vGrosorTxt"></span></label>
+            <label><input type="checkbox" id="negritaTxt" checked> negrita</label>
+            <label title="Cada caracter centrado en una celda igual, como en textos de paso fijo: cambiar una letra no mueve las demas"><input type="checkbox" id="pasoFijoTxt" checked> paso fijo</label>
+            <label>despl. x % <input type="range" step="any" id="dxTxt" min="-50" max="50" value="0"></label>
+            <label>despl. y % <input type="range" step="any" id="dyTxt" min="-50" max="50" value="0"></label>
+            <label>espaciado <input type="range" step="any" id="espTxt" min="-30" max="30" value="2"><span class="v" id="vEspTxt"></span></label>
+            <label><input type="checkbox" id="celdas"> celdas <input type="number" id="nCeldas" value="7" min="1" max="12" style="width:4em"></label>
+          </div>
+          <p class="ayuda">GT: prefijo + 3 digitos + 3 letras sin vocales ni Ñ. Fuentes libres incluidas: Barlow, Barlow Semi Condensed, Barlow Condensed, Oswald y Overpass. La tipografia exacta del texto puede no estar entre ellas: comparar varias.</p>
+        </div>
+      </details>
+
+      <details class="bloque" id="bloqueSintesis" data-requiere="imagen">
+        <summary>Comparacion por sintesis <span class="sub">texto conocido · candidatas</span></summary>
+        <div class="cuerpo">
+          <p class="ayuda">1) Escribe en la plantilla un texto conocido de la imagen, acercalo a mano y pulsa «Ajustar»: calibra el encaje y la degradacion de la foto. Marca «fijar». 2) Escribe el texto aproximado en la plantilla, acercala, y lista candidatas (? = cualquier caracter valido, [38] = uno de esos). 3) «Comparar» las renderiza, las degrada igual que la foto y las ordena por parecido en los pixeles originales.</p>
+          <div class="grid2">
+            <label>degradacion <select id="degTipo"><option value="gauss" selected>desenfoque (gauss)</option><option value="mosaico">mosaico por bloques</option><option value="ninguna">ninguna (solo pixeles de la camara)</option></select></label>
+            <label title="La plantilla esta fijada; solo se ajusta el encaje"><input type="checkbox" id="degFijar"> fijar degradacion</label>
+            <label id="filaGauss">sigma px <input type="range" id="degSigma" min="0" max="6" step="0.05" value="0.8"><span class="v" id="vDegSigma"></span></label>
+            <span id="filaMosaico" hidden><label>bloque px <input type="number" id="degBloque" value="4" min="1" max="32" style="width:4em"></label>
+              <label>desfase x <input type="number" id="degOx" value="0" min="0" max="31" style="width:4em"></label><label>y <input type="number" id="degOy" value="0" min="0" max="31" style="width:4em"></label></span>
+            <label title="Marcar si el texto es mas claro que su fondo (p. ej. texto blanco sobre una franja oscura)"><input type="checkbox" id="textoClaro"> texto claro sobre fondo oscuro</label>
+          </div>
+          <div class="fila"><button id="btnAjustar">Ajustar al texto de la plantilla</button></div>
+          <textarea id="candidatos" rows="3" style="width:100%" placeholder="una candidata o patron por linea: P492GZC, P4?2GZC, P49[28]GZC"></textarea>
+          <div class="fila"><button class="primario" id="btnComparar">Comparar candidatas</button></div>
+          <p class="ayuda" id="infoComparar"></p>
+          <table class="pts ranking"><tbody id="tablaRanking"></tbody></table>
+        </div>
+      </details>
+      <details class="bloque" id="bloqueApilado" data-requiere="imagen">
+        <summary>Apilado de fotogramas <span class="sub" id="nPila">0 en pila</span></summary>
+        <div class="cuerpo">
+          <p class="ayuda">Puntos de referencia: marca las esquinas (o aristas) en un fotograma y «Seguir» las busca en los demas del mismo tamano por correlacion (NCC, subpixel). Cada fotograma se rectifica con sus propios puntos y se apila. Reduce ruido; no inventa detalle.</p>
+          <div class="fila"><button id="btnSeguir" title="Busca los puntos de la imagen actual en las demas">Seguir puntos desde la actual</button>
+            <button class="primario" id="btnSeguirApilar">Seguir y apilar</button></div>
+          <div class="grid2">
+            <label>parche px <input type="range" id="rParche" min="4" max="30" value="10"><span class="v" id="vParche"></span></label>
+            <label>busqueda ± px <input type="range" id="rBusqueda" min="2" max="60" value="12"><span class="v" id="vBusqueda"></span></label>
+            <label>NCC minima <input type="range" id="nccMin" min="0" max="1" step="0.05" value="0.6"><span class="v" id="vNcc"></span></label>
+            <label>alineado fino <select id="alinPila"><option value="entero">entero ±6 px (SSD)</option><option value="subpixel">subpixel ±6 px (SSD + parabola)</option><option value="no">ninguno (solo los puntos)</option></select></label>
+            <label>mezcla <select id="modoPila"><option value="media">media</option><option value="mediana">mediana</option><option value="recortada">media recortada (sin min/max)</option></select></label>
+            <label title="Lucky imaging: usar solo el % mas nitido (varianza del laplaciano)">nitidos % <input type="range" id="mejoresPila" min="10" max="100" step="5" value="100"><span class="v" id="vMejores"></span></label>
+          </div>
+          <p class="ayuda" id="infoSeguir"></p>
+          <div class="fila"><button id="btnApilar">Anadir actual</button><button id="btnApilarTodos">Anadir todos</button>
+            <label><input type="checkbox" id="verPila"> ver apilado</label><button id="btnVaciar">Vaciar</button></div>
+        </div>
+      </details>
+
+      <details class="bloque" id="bloqueIntegridad" data-requiere="imagen">
+        <summary>Integridad de la imagen <span class="sub">cuantizacion · miniatura · ELA</span></summary>
+        <div class="cuerpo">
+          <p class="ayuda">Indicios, no pruebas. Tablas de cuantizacion: si son las de libjpeg, la ultima escritura fue software. Miniatura EXIF distinta de la imagen: edicion posterior a la captura. ELA: zonas con distinta historia de compresion; recomprimir a la calidad del original (la pone «Analizar»).</p>
+          <div class="fila"><button id="btnIntegridad">Analizar tablas y miniatura</button></div>
+          <pre id="integInfo">(sin analizar)</pre>
+          <canvas id="miniCanvas" hidden style="max-width:100%;image-rendering:pixelated" title="miniatura EXIF · imagen principal reducida · diferencia x4"></canvas>
+          <div class="grid2">
+            <label>calidad ELA <input type="range" id="elaCalidad" min="50" max="100" value="90"><span class="v" id="vElaCalidad"></span></label>
+            <label>amplificacion <input type="range" id="elaAmp" min="1" max="60" value="20"><span class="v" id="vElaAmp"></span></label>
+            <label title="El percentil 99 del error pasa a blanco (ignora la amplificacion manual)"><input type="checkbox" id="elaAuto" checked> autoescala</label>
+          </div>
+          <div class="fila"><button id="btnELA">Calcular ELA</button><button id="btnElaAbrir" title="Anade el mapa ELA como imagen para ampliarlo y rectificarlo">abrir ELA como imagen</button></div>
+          <p class="ayuda" id="elaInfo"></p>
+          <canvas id="elaCanvas" hidden style="width:100%"></canvas>
+          <p class="ayuda" style="margin-top:12px"><b>Mapas de calor</b> sobre la imagen. Ruido: rojo = mas ruido que el resto, azul = menos (zona pegada de otra foto, suavizada o retocada). JPEG ghost: oscuro en la calidad elegida = zona que ya estuvo comprimida a esa calidad.</p>
+          <div class="fila"><button id="btnMapaRuido">Mapa de ruido</button><button id="btnGhost">JPEG ghost</button>
+            <button class="chico" id="btnMapaAbrir" title="Anade el mapa como imagen para ampliarlo">abrir mapa como imagen</button></div>
+          <div class="grid2">
+            <label>calidad ghost <input type="range" id="ghostQ" min="50" max="95" step="5" value="60"><span class="v" id="vGhostQ"></span></label>
+            <label>opacidad <input type="range" id="mapaOpacidad" min="0" max="100" value="70"><span class="v" id="vMapaOpacidad"></span></label>
+          </div>
+          <p class="ayuda" id="mapaInfo"></p>
+          <canvas id="mapaCanvas" hidden style="width:100%"></canvas>
+        </div>
+      </details>
+      <details class="bloque" open id="bloqueMeta">
+        <summary>Metadatos <span class="sub" id="tMeta">imagen · video · archivo</span></summary>
+        <div class="cuerpo">
+          <div class="fila"><select id="selArchivo" title="Archivo cuyos metadatos se muestran"></select>
+            <button class="chico" id="btnQuitarArchivo" title="Quitar este archivo de la sesion (el fichero no se toca; queda anotado)">quitar</button>
+            <button class="chico" id="btnCopiarHashes" title="Copia nombre, tamano y hashes del archivo al portapapeles (texto)">copiar hashes</button></div>
+          <div class="fila" id="incrustables"></div>
+          <pre id="metaInfo">(sin archivo)</pre>
+          <p class="ayuda">Hashes MD5, SHA-1, SHA-256, SHA-512 y CRC32 del fichero tal cual se cargo. EXIF/GPS, IPTC, XMP, chunks PNG (CRC), comentarios, PDF, ZIP/Office y contenedores de video. La fecha del sistema de ficheros es la de esta copia, no la del contenido.</p>
+        </div>
+      </details>
+      <details class="bloque">
+        <summary>Analisis de archivo <span class="sub">formato · codecs · estructura</span></summary>
+        <div class="cuerpo"><canvas id="entropia" hidden style="width:100%;height:60px;display:block;margin-bottom:6px"></canvas><pre id="hexInfo">(sin archivo)</pre></div>
+      </details>
+    </div>
+  </aside>
+</div>
+
+<div id="ayuda" hidden role="dialog" aria-modal="true" aria-labelledby="ayudaTitulo">
+  <div class="ventana">
+    <div class="cab"><h1 id="ayudaTitulo">Ayuda — manual de uso</h1><span class="ayuda" id="ayudaOrigen"></span><button id="ayudaCerrar" title="Cerrar (Esc)">✕</button></div>
+    <div id="ayudaCuerpo"></div>
+  </div>
+</div>
+<script src="js/nucleo.js"></script>
+<script src="js/hashes.js"></script>
+<script src="js/interpolacion.js"></script>
+<script src="js/filtros.js"></script>
+<script src="js/histograma.js"></script>
+<script src="js/hexa.js"></script>
+<script src="js/metadatos.js"></script>
+<script src="js/metadatos_video.js"></script>
+<script src="js/video.js"></script>
+<script src="js/geometria.js"></script>
+<script src="js/hipotesis.js"></script>
+<script src="fuentes/fuentes_libres.js"></script>
+<script src="js/carrusel.js"></script>
+<script src="js/exportar.js"></script>
+<script src="js/referencias.js"></script>
+<script src="js/app.js"></script>
+<script src="js/control.js"></script>
+<script src="js/sintesis.js"></script>
+<script src="js/comparar.js"></script>
+<script src="js/integridad.js"></script>
+<script src="js/mapas.js"></script>
+<script src="js/integridad_ui.js"></script>
+<script src="js/informe.js"></script>
+<script src="js/estructura.js"></script>
+<script src="js/archivo_ui.js"></script>
+<script src="js/sesion.js"></script>
+<script src="js/vistas.js"></script>
+<script src="js/ayuda_contenido.js"></script>
+<script src="js/apilado.js"></script>
+<script src="js/interfaz.js"></script>
+</body>
+</html>

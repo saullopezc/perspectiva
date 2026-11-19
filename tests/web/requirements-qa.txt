@@ -1,0 +1,2 @@
+# Dependencias de las pruebas en navegador
+playwright==1.64.1

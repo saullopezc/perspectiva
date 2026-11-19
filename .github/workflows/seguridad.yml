@@ -1,0 +1,78 @@
+# Seguridad de Perspectiva: analisis estatico (CodeQL, JavaScript y Python), busqueda de
+# credenciales en toda la historia (gitleaks), y comprobaciones propias de la version
+# publicable: que la carpeta generada no contenga terminos ni rutas que no deben salir,
+# que servida por HTTP no haga ninguna peticion fuera de su origen, y que nombres de
+# fichero hostiles no inyecten HTML (dentro de qa_informe, en el trabajo de pruebas).
+name: seguridad
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"   # cada lunes: reglas de CodeQL y de credenciales actualizadas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        lenguaje: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.lenguaje }}
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+
+  credenciales:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # toda la historia, no solo el ultimo commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publicable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencias
+        run: |
+          pip install pillow numpy -r tests/web/requirements-qa.txt
+          python -m playwright install --with-deps chromium
+      - name: Carpeta publicable (barrido de terminos, rutas y scripts que falten)
+        run: python -I tools/publicar_web.py "$RUNNER_TEMP/publicado"
+      - name: Servida por HTTP no pide nada fuera de su origen
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          Image.new("RGB", (320, 200), (90, 120, 160)).save("/tmp/prueba.png")
+          PY
+          python tests/web/qa_publicado.py "$RUNNER_TEMP/publicado" /tmp/prueba.png
+
+  dependencias:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4

@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+# -----------------------------------------------------------------------------
+# generar_insumos.py — Fabrica TODOS los insumos de las pruebas de tools/web sin
+# fotos externas: un rotulo sintetico dibujado con las fuentes libres de la propia
+# herramienta (franja azul con REFERENCIA, codigo P 123ABC con paso fijo, TEXTO
+# CONOCIDO abajo), sus vistas en perspectiva con camara conocida y a varias
+# resoluciones, dos "fotos" de muestra, un clip de video con movimiento, los casos
+# de integridad (calidades JPEG, tablas propias, montaje para ELA, miniaturas EXIF)
+# y los de estructura (codificados con FFmpeg + su ffprobe como oraculo).
+#
+# Uso:  python3 -I tests/web/generar_insumos.py DIR_BASE
+#       (Pillow y numpy; ffmpeg, ffprobe y exiftool en PATH)
+#       DIR_BASE/muestras, DIR_BASE/integridad, DIR_BASE/estructura
+# Author: Saul López
+# Date:   2026-11-19
+# -----------------------------------------------------------------------------
+import base64
+import io
+import json
+import math
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+RAIZ = Path(__file__).resolve().parents[2]
+FUENTES_JS = RAIZ / "tools" / "web" / "fuentes" / "fuentes_libres.js"
+TMP = Path(tempfile.mkdtemp(prefix="insumos_"))
+
+
+def fuente(familia, tam):
+    """Fuente libre incluida en la herramienta (base64 en fuentes_libres.js)."""
+    lista = json.loads(re.search(r"RP\.FUENTES_LIBRES = (\[.*\]);", FUENTES_JS.read_text(encoding="utf-8"), re.S).group(1))
+    f = next(x for x in lista if x["familia"] == familia)
+    ruta = TMP / f["archivo"]
+    if not ruta.exists():
+        ruta.write_bytes(base64.b64decode(f["b64"]))
+    return ImageFont.truetype(str(ruta), tam)
+
+
+def rotulo(W=432, H=209):
+    """Rotulo 30x15: franja azul (borde inferior a 0.215 del alto) con REFERENCIA en blanco, P 123ABC con paso fijo, TEXTO CONOCIDO."""
+    im = Image.new("RGB", (W, H), (246, 246, 242)); d = ImageDraw.Draw(im)
+    banda = round(0.215 * H)
+    d.rectangle([0, 0, W - 1, banda - 1], fill=(24, 44, 168))
+    f1 = fuente("Barlow Semi Condensed", int(banda * 0.78))
+    d.text((W / 2, banda / 2), "REFERENCIA", font=f1, fill=(255, 255, 255), anchor="mm")
+    texto, tam = "P 123ABC", int(H * 0.56)
+    while True:  # el codigo ocupa como mucho el 90 % del ancho
+        f2 = fuente("Oswald", tam); celda = f2.getlength("0") * 1.02
+        anchos = [0.35 * celda if c == " " else celda for c in texto]
+        if sum(anchos) <= 0.9 * W or tam < 10: break
+        tam -= 2
+    x = (W - sum(anchos)) / 2; y = H * 0.56
+    for c, a in zip(texto, anchos):
+        if c != " ":
+            d.text((x + a / 2, y), c, font=f2, fill=(16, 16, 16), anchor="mm")
+        x += a
+    f3 = fuente("Barlow", int(H * 0.11))
+    d.text((W / 2, H * 0.915), "TEXTO CONOCIDO", font=f3, fill=(16, 16, 16), anchor="mm")
+    d.rectangle([0, 0, W - 1, H - 1], outline=(40, 40, 40), width=2)
+    return im
+
+
+def fondo(w, h, semilla):
+    r = np.random.default_rng(semilla)
+    base = np.zeros((h, w, 3), np.float32) + r.uniform(40, 90, 3)
+    gy, gx = np.mgrid[0:h, 0:w]
+    base += 30 * np.sin(gx / 37.0 + semilla)[..., None] + 20 * np.cos(gy / 23.0)[..., None] + r.normal(0, 6, (h, w, 3))
+    return Image.fromarray(base.clip(0, 255).astype(np.uint8))
+
+
+def homografia(dst, src):
+    A, b = [], []
+    for (x, y), (u, v) in zip(dst, src):
+        A += [[x, y, 1, 0, 0, 0, -u * x, -u * y], [0, 0, 0, x, y, 1, -v * x, -v * y]]; b += [u, v]
+    return np.append(np.linalg.solve(np.array(A, float), np.array(b, float)), 1).reshape(3, 3)
+
+
+def proyectar(imagen, esquinas, ow, oh, fondo_rgb=(40, 40, 40)):
+    """Pinta la imagen (HxWx3) en el cuadrilatero esquinas (SI, SD, ID, II) de una imagen ow x oh (bilineal)."""
+    src = np.asarray(imagen, np.float32); Hs, Ws = src.shape[:2]
+    Hi = homografia(esquinas, [(0, 0), (Ws, 0), (Ws, Hs), (0, Hs)])
+    yy, xx = np.mgrid[0:oh, 0:ow].astype(np.float64) + 0.5
+    q = Hi @ np.stack([xx.ravel(), yy.ravel(), np.ones(xx.size)]); u, v = q[0] / q[2] - 0.5, q[1] / q[2] - 0.5
+    dentro = (u >= 0) & (v >= 0) & (u < Ws - 1) & (v < Hs - 1)
+    u0, v0 = np.clip(np.floor(u).astype(int), 0, Ws - 2), np.clip(np.floor(v).astype(int), 0, Hs - 2); du, dv = (u - u0)[:, None], (v - v0)[:, None]
+    pix = src[v0, u0] * (1 - du) * (1 - dv) + src[v0, u0 + 1] * du * (1 - dv) + src[v0 + 1, u0] * (1 - du) * dv + src[v0 + 1, u0 + 1] * du * dv
+    out = np.zeros((ow * oh, 3), np.float32) + fondo_rgb if not isinstance(fondo_rgb, Image.Image) else np.asarray(fondo_rgb, np.float32).reshape(-1, 3).copy()
+    out[dentro] = pix[dentro]
+    return Image.fromarray(out.reshape(oh, ow, 3).clip(0, 255).astype(np.uint8))
+
+
+def camara(W, H, f, rx, ry, tz, cx, cy):
+    def p(X, Y):
+        x, y, z = X - W / 2, Y - H / 2, 0.0
+        a, b = math.radians(rx), math.radians(ry)
+        x, z = x * math.cos(b) + z * math.sin(b), -x * math.sin(b) + z * math.cos(b)
+        y, z = y * math.cos(a) - z * math.sin(a), y * math.sin(a) + z * math.cos(a)
+        return cx + f * x / (z + tz), cy + f * y / (z + tz)
+    return p
+
+
+def muestras(d):
+    d.mkdir(parents=True, exist_ok=True)
+    pl = rotulo()
+    # "diagrama": el rotulo frontal en x 152-584, y 121-330 de un lienzo 738x411 (las pruebas recortan esa zona)
+    dg = Image.new("RGB", (738, 411), (230, 236, 244)); dg.paste(pl, (152, 121)); dg.save(d / "diagrama.png")
+    # vista en perspectiva con camara conocida (f=900, punto principal centrado) y reducciones
+    p = camara(30.0, 15.0, 900.0, 20, 35, 60.0, 400, 300)
+    esq = [p(0, 0), p(30, 0), p(30, 15), p(0, 15)]
+    s = proyectar(pl.resize((432, 216)), esq, 800, 600); s.save(d / "sintetica_sat_persp.png")
+    json.dump({"esquinas_SI_SD_ID_II": esq, "franja_FI": p(0, 0.215 * 15), "franja_FD": p(30, 0.215 * 15), "f": 900, "giro_grados": [20, 35],
+               "fuente": "rotulo sintetico (tests/web/generar_insumos.py)"}, open(d / "sintetica_sat_persp.json", "w"), indent=1)
+    for k in (2, 6, 10, 14):
+        s.resize((800 // k, 600 // k), Image.BOX).save(d / f"sintetica_x{k}.png")
+        json.dump({"escala": k, "esquinas_SI_SD_ID_II": [[x / k, y / k] for x, y in esq]}, open(d / f"sintetica_x{k}.json", "w"))
+    s.resize((800 // 6, 600 // 6), Image.BOX).filter(ImageFilter.GaussianBlur(1.2)).save(d / "sintetica_x6_gauss1.2.png")
+    json.dump({"escala": 6, "sigma": 1.2, "esquinas_SI_SD_ID_II": [[x / 6, y / 6] for x, y in esq]}, open(d / "sintetica_x6_gauss1.2.json", "w"))
+    # dos "fotos": el rotulo sobre un fondo con textura, una casi frontal y otra algo girada
+    proyectar(pl, [(128, 92), (612, 96), (610, 330), (126, 326)], 738, 369, fondo(738, 369, 1)).save(d / "muestra_b.png")
+    proyectar(rotulo().transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.FLIP_TOP_BOTTOM), [(150, 120), (520, 150), (505, 330), (140, 300)], 640, 480, fondo(640, 480, 2)).save(d / "muestra_a.png")
+    # clip con movimiento (el rotulo se desplaza): para captura, seguimiento y apilado
+    fr = TMP / "fotogramas"; fr.mkdir(exist_ok=True); bg = fondo(320, 240, 3)
+    for i in range(45):  # 30 fps (las pruebas de video cuentan con 30), 1.5 s
+        dx, dy = 40 + 1.7 * i, 70 + 0.5 * i
+        proyectar(pl, [(dx, dy), (dx + 180, dy + 6), (dx + 178, dy + 92), (dx - 2, dy + 86)], 320, 240, bg).save(fr / f"f{i:03d}.png")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-framerate", "30", "-i", str(fr / "f%03d.png"), "-c:v", "libvpx-vp9", "-b:v", "400k",
+                    "-pix_fmt", "yuv420p", str(d / "clip.webm")], check=True)
+
+
+def integridad(d, base):
+    from PIL import Image as I
+    d.mkdir(parents=True, exist_ok=True)
+    im = I.open(base).convert("RGB")
+    for q in (50, 75, 90, 95):
+        im.save(d / f"calidad_q{q}.jpg", quality=q)
+    im.save(d / "tablas_propias.jpg", qtables=[[3] * 64, [5] * 64])
+    # ELA: base en gris (sin croma: con colores saturados y submuestreo 4:2:0 la recompresion no converge y todo da error)
+    # y una zona con bordes nitidos de texto, sin comprimir, pegada (una zona plana apenas da error en el ELA)
+    gris = im.convert("L").convert("RGB")
+    b = io.BytesIO(); gris.save(b, "JPEG", quality=70); b1 = I.open(io.BytesIO(b.getvalue())).convert("RGB")
+    b1.save(d / "doble_q70.jpg", quality=70)
+    parche = rotulo().convert("L").convert("RGB").crop((60, 60, 290, 162))
+    rect = [430, 150, 430 + parche.width, 150 + parche.height]
+    m = b1.copy(); m.paste(parche, rect[:2]); m.save(d / "montaje_q70.jpg", quality=70)
+    json.dump({"rect_pegado_x0y0x1y1": rect, "calidad": 70}, open(d / "montaje_q70.json", "w"))
+    # mapa de ruido: ruido gaussiano sigma 2 en toda la imagen y sigma 8 en una zona (PNG, sin perdida); control: sigma 2 en toda
+    # base sin ruido propio (degradado + rotulo): si el fondo ya trae ruido distinto del rotulo, el mapa compara contenidos
+    lisa = Image.new("RGB", im.size); gy, gx = np.mgrid[0:im.height, 0:im.width]
+    lisa = np.stack([90 + 60 * np.sin(gx / 90.0), 110 + 40 * np.cos(gy / 70.0), 130 + 30 * np.sin((gx + gy) / 120.0)], -1).astype(np.float32)
+    lisa = np.asarray(proyectar(rotulo(), [(128, 92), (612, 96), (610, 330), (126, 326)], im.width, im.height, Image.fromarray(lisa.clip(0, 255).astype(np.uint8))), np.float32)
+    r = np.random.default_rng(7); a = lisa; zr = [96, 64, 352, 256]
+    ruido = r.normal(0, 2, a.shape); ruido[zr[1]:zr[3], zr[0]:zr[2]] = r.normal(0, 8, (zr[3] - zr[1], zr[2] - zr[0], 3))
+    I.fromarray((a + ruido).clip(0, 255).astype(np.uint8)).save(d / "ruido_montaje.png")
+    I.fromarray((a + r.normal(0, 2, a.shape)).clip(0, 255).astype(np.uint8)).save(d / "ruido_control.png")
+    json.dump({"rect_x0y0x1y1": zr, "sigma_fuera": 2, "sigma_dentro": 8}, open(d / "ruido_montaje.json", "w"))
+    # JPEG ghost: una zona comprimida antes a q60, pegada y todo guardado a q95; control: todo guardado solo a q95
+    b = io.BytesIO(); im.save(b, "JPEG", quality=60); q60 = I.open(io.BytesIO(b.getvalue())).convert("RGB")
+    zg = [192, 96, 448, 288]; g = im.copy(); g.paste(q60.crop(zg), zg[:2]); g.save(d / "ghost_montaje.jpg", quality=95)
+    im.save(d / "ghost_control.jpg", quality=95)
+    json.dump({"rect_x0y0x1y1": zg, "calidad_previa": 60, "calidad_final": 95}, open(d / "ghost_montaje.json", "w"))
+    ed = im.copy(); ImageDraw.Draw(ed).rectangle([130, 120, 600, 250], fill=(240, 240, 240))
+    exif = I.Exif(); exif[0x010f] = "QA-integridad"
+    for nombre, principal, mini in (("miniatura_distinta", ed, im), ("miniatura_coincide", ed, ed)):
+        principal.save(d / f"{nombre}.jpg", quality=92, exif=exif.tobytes())
+        t = mini.copy(); t.thumbnail((160, 160)); t.save(d / f"_mini_{nombre}.jpg", quality=85)
+        subprocess.run(["exiftool", "-q", "-overwrite_original", f"-ThumbnailImage<={d / f'_mini_{nombre}.jpg'}", str(d / f"{nombre}.jpg")], check=True)
+
+
+def estructura(d, base):
+    d.mkdir(parents=True, exist_ok=True)
+    F = ["ffmpeg", "-nostdin", "-v", "error", "-y"]
+    SRC = ["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2"]
+    run = lambda *a: subprocess.run([*F, *a], check=True, cwd=d)
+    run(*SRC, "-c:v", "libx264", "-profile:v", "high", "-level", "4.0", "-pix_fmt", "yuv420p", "-g", "25", "-c:a", "aac", "-ac", "2", "-b:a", "128k", "h264_aac.mp4")
+    run(*SRC, "-c:v", "libx264", "-profile:v", "baseline", "-level", "3.0", "-pix_fmt", "yuv420p", "-g", "10", "-an", "_sinrot.mp4")
+    run("-display_rotation", "90", "-i", "_sinrot.mp4", "-c", "copy", "h264_rot90.mp4"); (d / "_sinrot.mp4").unlink()
+    run(*SRC, "-c:v", "libx265", "-x265-params", "log-level=error", "-tag:v", "hvc1", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "1", "-ar", "44100", "hevc_aac.mp4")
+    run(*SRC, "-c:v", "libvpx-vp9", "-b:v", "200k", "-c:a", "libopus", "-ac", "2", "vp9_opus.webm")
+    run(*SRC, "-c:v", "libx264", "-profile:v", "main", "-pix_fmt", "yuv420p", "-c:a", "libmp3lame", "-ac", "1", "-ar", "22050", "h264_mp3.mkv")
+    run("-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=16000:duration=1", "-c:a", "pcm_s16le", "-ac", "1", "tono.wav")
+    for f in ("h264_aac.mp4", "h264_rot90.mp4", "hevc_aac.mp4", "vp9_opus.webm", "h264_mp3.mkv", "tono.wav"):
+        j = subprocess.run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", f], check=True, cwd=d, capture_output=True, text=True).stdout
+        (d / f"{f}.ffprobe.json").write_text(j)
+    im = Image.open(base).convert("RGB")
+    im.save(d / "base_420.jpg", quality=85, subsampling=2); im.save(d / "prog_444.jpg", quality=90, subsampling=0, progressive=True)
+    im.save(d / "base_422.jpg", quality=80, subsampling=1); im.save(d / "rgb.png")
+    (d / "imagen_con_extension.jpg").write_bytes(Path(base).read_bytes())  # PNG con extension .jpg
+
+
+def main(base):
+    base = Path(base)
+    muestras(base / "muestras")
+    integridad(base / "integridad", base / "muestras" / "muestra_b.png")
+    estructura(base / "estructura", base / "muestras" / "muestra_b.png")
+    for sub in ("muestras", "integridad", "estructura"):
+        n = sorted(p.name for p in (base / sub).iterdir())
+        print(f"{sub}: {len(n)} ficheros")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1]))

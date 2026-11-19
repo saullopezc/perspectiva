@@ -1,0 +1,6 @@
+# resultados de las pruebas, carpetas publicadas y entornos locales
+_local/
+__pycache__/
+*.pyc
+.venv*/
+node_modules/

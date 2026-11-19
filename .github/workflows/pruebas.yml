@@ -1,0 +1,95 @@
+# Pruebas de funcionalidad de Perspectiva: logica (Node), analisis de archivo contra
+# ffprobe, y cada funcion en navegador real (Chromium y Firefox) con insumos fabricados
+# en el propio trabajo (tests/web/generar_insumos.py: sin fotos ni ficheros externos).
+# Los resultados de cada ejecucion (informes y capturas) quedan como artefacto.
+name: pruebas
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  logica:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Herramientas para fabricar insumos
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libimage-exiftool-perl
+          pip install pillow numpy
+      - name: Insumos sinteticos
+        run: python -I tests/web/generar_insumos.py "$RUNNER_TEMP/insumos"
+      - name: Logica (Node)
+        run: node tests/web/test_logica.js
+      - name: Analisis de archivo frente a ffprobe
+        run: node tests/web/test_estructura.js "$RUNNER_TEMP/insumos/estructura"
+      - name: La ayuda integrada esta al dia con el manual
+        run: |
+          python -I tools/generar_ayuda_web.py
+          git diff --exit-code tools/web/js/ayuda_contenido.js
+
+  navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        navegador: [chromium, firefox]
+    env:
+      QA_NAV: ${{ matrix.navegador }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependencias
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libimage-exiftool-perl
+          pip install pillow numpy -r tests/web/requirements-qa.txt
+          python -m playwright install --with-deps ${{ matrix.navegador }}
+      - name: Insumos sinteticos
+        run: |
+          python -I tests/web/generar_insumos.py "$RUNNER_TEMP/insumos"
+          python -I tests/web/generar_insumos_metadatos.py "$RUNNER_TEMP/insumos/metadatos"
+      - name: Regresion general
+        run: python tests/web/qa_navegador.py "$RUNNER_TEMP/insumos/muestras/muestra_a.png" "$RUNNER_TEMP/insumos/muestras/muestra_b.png" "$RUNNER_TEMP/insumos/muestras/clip.webm"
+      - name: Color
+        run: python tests/web/qa_color.py
+      - name: Plantilla, aplanado y puntos de control
+        run: python tests/web/qa_hipotesis.py "$RUNNER_TEMP/insumos/muestras"
+      - name: Comparacion por sintesis
+        run: python tests/web/qa_sintesis.py "$RUNNER_TEMP/insumos/muestras"
+      - name: Edicion, vistas y analisis de archivo
+        run: python tests/web/qa_edicion.py "$RUNNER_TEMP/insumos/muestras"
+      - name: Integridad de la imagen
+        run: python tests/web/qa_integridad.py "$RUNNER_TEMP/insumos/integridad"
+      - name: Informe, sesion y ayuda
+        run: python tests/web/qa_informe.py "$RUNNER_TEMP/insumos/muestras"
+      - name: Metadatos
+        run: python tests/web/qa_metadatos.py "$RUNNER_TEMP/insumos/metadatos"
+      - name: Maqueta (controles que se salen)
+        run: python tests/web/qa_maqueta.py "$RUNNER_TEMP/insumos/muestras/muestra_b.png"
+      - name: Resultados de la ejecucion
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-${{ matrix.navegador }}
+          path: _local/qa/
+          retention-days: 14
