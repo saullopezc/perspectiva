@@ -173,7 +173,9 @@ def main(insumos):
         # hashes: los que muestra la herramienta = los de hashlib sobre el mismo fichero (y los del exportado)
         muestra = insumos / "muestra_b.png"; b = muestra.read_bytes()
         esperado = {k: hashlib.new(k, b).hexdigest() for k in ("md5", "sha1", "sha256", "sha512")}
-        pg.set_input_files("#archivo", str(muestra)); pg.wait_for_function("() => document.getElementById('metaInfo').textContent.includes('MD5 ')", timeout=10000)
+        pg.set_input_files("#archivo", str(muestra))
+        # se espera al MD5 DE ESTE fichero: "MD5" ya estaba en pantalla por el anterior (en la CI, mas lenta, se leia antes de tiempo)
+        pg.wait_for_function("(m) => document.getElementById('metaInfo').textContent.includes(m)", arg=esperado["md5"], timeout=15000)
         meta = pg.text_content("#metaInfo")
         caso("hashes", "Metadatos muestra MD5, SHA-1, SHA-256 y SHA-512 iguales a hashlib", all(v in meta for v in esperado.values()) and f"({len(b)} bytes)" in meta,
              {k: v[:12] for k, v in esperado.items()})

@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -40,7 +41,8 @@ def caso(grupo, nombre, ok, detalle=""):
 def main(muestras):
     muestras = Path(muestras).resolve()
     SALIDA.mkdir(parents=True)
-    hostil = SALIDA / 'imagen <b>x<i> & "q".png'  # nombre que, sin escapar, inyectaria HTML
+    # nombre que, sin escapar, inyectaria HTML; fuera de SALIDA: los artefactos de GitHub no admiten < > " en los nombres
+    hostil = Path(tempfile.mkdtemp(prefix="hostil_")) / 'imagen <b>x<i> & "q".png'
     shutil.copyfile(muestras / "muestra_b.png", hostil)
     b = hostil.read_bytes(); h = {k: hashlib.new(k, b).hexdigest() for k in ("md5", "sha1", "sha256")}
     with sync_playwright() as p:
