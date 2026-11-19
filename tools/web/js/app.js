@@ -167,8 +167,30 @@ document.addEventListener("paste", async (e) => {
     await cargarArchivo(f && f.name && f.name !== "image.png" ? f : new File([f], `portapapeles_${RP.sello()}.${it.type.split("/")[1]}`, { type: it.type }));
   }
 });
+// arrastrar y soltar: aviso mientras se arrastra y explicacion si lo soltado no es un fichero (un enlace o una ruta, p. ej.
+// arrastrado desde el explorador de un editor o desde otra pestana: una pagina no puede leer un fichero por su ruta)
+let profArrastre = 0, avisoSoltar = null;
+const esFichero = (e) => [...(e.dataTransfer?.types || [])].includes("Files");
+const mostrarSoltar = (texto, ms = 0) => {
+  clearTimeout(avisoSoltar); $("soltarTexto").textContent = texto; $("soltar").hidden = false;
+  if (ms) avisoSoltar = setTimeout(() => ($("soltar").hidden = true), ms);
+};
+document.addEventListener("dragenter", (e) => {
+  profArrastre++;
+  mostrarSoltar(esFichero(e) ? "Suelta para cargar" : "Esto es un enlace o un texto, no un fichero: arrastralo desde el explorador de archivos del sistema o usa «Abrir archivos»");
+});
+document.addEventListener("dragleave", () => { if (--profArrastre <= 0) { profArrastre = 0; $("soltar").hidden = true; } });
 document.addEventListener("dragover", (e) => e.preventDefault());
-document.addEventListener("drop", async (e) => { e.preventDefault(); for (const f of e.dataTransfer.files) await cargarArchivo(f); });
+document.addEventListener("drop", async (e) => {
+  e.preventDefault(); profArrastre = 0;
+  const ficheros = [...(e.dataTransfer?.files || [])];
+  if (!ficheros.length) {
+    mostrarSoltar("Lo soltado no es un fichero (es un enlace o un texto). Arrastralo desde el explorador de archivos del sistema, o usa «Abrir archivos» o Ctrl+V.", 6000);
+    return;
+  }
+  $("soltar").hidden = true;
+  for (const f of ficheros) await cargarArchivo(f);
+});
 $("btnAnterior").onclick = () => carrusel.mover(-1);
 $("btnSiguiente").onclick = () => carrusel.mover(1);
 

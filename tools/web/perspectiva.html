@@ -103,6 +103,11 @@
                   background:var(--sup2); border:1px solid var(--linea); color:var(--txt); opacity:0; transition:opacity .15s; }
   .hoja:hover .quitar, .hoja.actual .quitar { opacity:1; }
   header h1 .logo { width:18px; height:18px; color:var(--acento); vertical-align:-3px; margin-right:7px; }
+  #soltar { position:fixed; inset:0; z-index:1050; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.35);
+             border:3px dashed var(--acento); pointer-events:none; }
+  #soltar .caja { background:var(--sup); border:1px solid var(--linea); border-radius:var(--radio); padding:20px 28px; max-width:520px; text-align:center; }
+  #soltar .logo { width:46px; height:46px; color:var(--acento); }
+  #soltarTexto { margin:10px 0 0; line-height:1.5; }
   #cargando { position:fixed; inset:0; z-index:1100; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
   #cargando .caja { background:var(--sup); border:1px solid var(--linea); border-radius:var(--radio); padding:22px 30px; text-align:center; min-width:260px;
                     box-shadow:0 10px 40px rgba(0,0,0,.4); }
@@ -548,6 +553,7 @@
   </aside>
 </div>
 
+<div id="soltar" hidden role="status" aria-live="polite"><div class="caja"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9 L28 4 L26 28 L6 24 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><p id="soltarTexto"></p></div></div>
 <div id="cargando" hidden role="status" aria-live="polite"><div class="caja"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9 L28 4 L26 28 L6 24 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><p id="cargandoTexto">Cargando</p><p id="cargandoPaso"></p></div></div>
 <div id="ayuda" hidden role="dialog" aria-modal="true" aria-labelledby="ayudaTitulo">
   <div class="ventana">

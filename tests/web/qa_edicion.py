@@ -167,6 +167,16 @@ def main(dir_img):
         v = pg.evaluate("""() => { const b = document.getElementById('bloqueVideo'), c = document.querySelector('#panel .contenido'), rb = b.getBoundingClientRect(), rc = c.getBoundingClientRect();
             return { panel: !document.body.classList.contains('panel-oculto'), abierto: b.open, visible: !b.hidden, aLaVista: rb.top >= rc.top - 2 && rb.top < rc.bottom - 40 }; }""")
         caso("video", "al cargar un video el panel se muestra en el bloque Video, abierto y a la vista", all(v.values()), v)
+        # ---------------- arrastrar y soltar: un fichero se carga; un enlace no, y la pagina lo explica
+        soltar = """async ([b64, modo]) => { const dt = new DataTransfer();
+            if (modo === 'fichero') dt.items.add(new File([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], 'soltada.png', { type: 'image/png' }));
+            else dt.setData('text/uri-list', 'file:///tmp/soltada.png');
+            const n0 = fuentes.length; for (const t of ['dragenter', 'dragover', 'drop']) document.getElementById('fuente').dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: dt }));
+            await new Promise(r => setTimeout(r, 1200)); return { nuevas: fuentes.length - n0, aviso: document.getElementById('soltar').hidden ? '' : document.getElementById('soltarTexto').textContent }; }"""
+        r1 = pg.evaluate(soltar, [base64.b64encode(b.read_bytes()).decode(), "fichero"])
+        caso("soltar", "soltar un fichero lo carga (y el aviso desaparece)", r1["nuevas"] == 1 and not r1["aviso"], r1)
+        r2 = pg.evaluate(soltar, ["", "enlace"])
+        caso("soltar", "control: soltar un enlace no carga nada y explica que hacer", r2["nuevas"] == 0 and "no es un fichero" in r2["aviso"], r2)
         caso("errores", "sin errores de JS", not errores, errores[:5])
         pg.screenshot(path=str(SALIDA / "edicion.png"))
         nav.close()

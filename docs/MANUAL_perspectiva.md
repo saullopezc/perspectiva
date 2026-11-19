@@ -30,7 +30,9 @@ ilegible en una lectura cierta, ni prueba por sí sola una manipulación o su au
 
 1. Abrir la página (`index.html` en la versión publicada, `tools/web/perspectiva.html` en el repositorio).
 2. Cargar archivos con **Abrir archivos**, arrastrándolos a la ventana, con **Pegar** (o `Ctrl+V`) desde el
-   portapapeles, o con el botón **＋** junto al carrusel.
+   portapapeles, o con el botón **＋** junto al carrusel. Para arrastrar, hay que hacerlo desde el explorador de archivos
+   del sistema: lo arrastrado desde el explorador de un editor de código o desde otra pestaña llega como enlace, no como
+   fichero, y una página web no puede leerlo; la página lo avisa.
 3. Para trabajar con vídeo: cargarlo y capturar fotogramas (sección 5.2); al cargarlo, el panel muestra el bloque
    *Vídeo*. Las herramientas de imagen se activan cuando hay al menos una imagen o un fotograma.
 
@@ -254,6 +256,7 @@ imágenes nítidas y grandes la comparación trabaja por bloques para no bloquea
 | En la comparación la candidata real no queda primera | marcar *paso fijo*, ajustar con un texto conocido, revisar fuente y polaridad |
 | «sigma en el tope» al ajustar | el desenfoque no es identificable con ese texto: no fijarlo |
 | La zona pegada no destaca en el ELA | recomprimir a la calidad del original (la pone *Analizar*) |
+| Arrastrar un archivo no lo carga | se arrastró un enlace (desde un editor o una pestaña): arrastrarlo desde el explorador de archivos del sistema o usar *Abrir archivos* |
 | Al abrir un archivo no pasa nada | error de carga de un módulo: ver la consola del navegador |
 
 ## 9. Verificación de la herramienta
