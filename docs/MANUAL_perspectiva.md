@@ -31,8 +31,11 @@ ilegible en una lectura cierta, ni prueba por sí sola una manipulación o su au
 1. Abrir la página (`index.html` en la versión publicada, `tools/web/perspectiva.html` en el repositorio).
 2. Cargar archivos con **Abrir archivos**, arrastrándolos a la ventana, con **Pegar** (o `Ctrl+V`) desde el
    portapapeles, o con el botón **＋** junto al carrusel.
-3. Para trabajar con vídeo: cargarlo y capturar fotogramas (sección 5.2). Las herramientas de imagen se activan
-   cuando hay al menos una imagen o un fotograma.
+3. Para trabajar con vídeo: cargarlo y capturar fotogramas (sección 5.2); al cargarlo, el panel muestra el bloque
+   *Vídeo*. Las herramientas de imagen se activan cuando hay al menos una imagen o un fotograma.
+
+Mientras se carga un archivo aparece un aviso con el paso en curso (lectura, hash, metadatos, decodificación). El panel
+siempre se muestra al abrir la página; se recuerdan su posición y su tamaño.
 
 Las fuentes tipográficas libres (OFL) vienen incluidas.
 

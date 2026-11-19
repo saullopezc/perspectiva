@@ -102,6 +102,15 @@
   .hoja .quitar { position:absolute; top:-6px; right:-6px; width:20px; height:20px; padding:0; border-radius:50%; font-size:11px; line-height:18px;
                   background:var(--sup2); border:1px solid var(--linea); color:var(--txt); opacity:0; transition:opacity .15s; }
   .hoja:hover .quitar, .hoja.actual .quitar { opacity:1; }
+  header h1 .logo { width:18px; height:18px; color:var(--acento); vertical-align:-3px; margin-right:7px; }
+  #cargando { position:fixed; inset:0; z-index:1100; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
+  #cargando .caja { background:var(--sup); border:1px solid var(--linea); border-radius:var(--radio); padding:22px 30px; text-align:center; min-width:260px;
+                    box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  #cargando .logo { width:58px; height:58px; color:var(--acento); animation:perspectivaGiro 1.6s ease-in-out infinite; }
+  #cargandoTexto { margin:12px 0 2px; font-weight:600; word-break:break-all; }
+  #cargandoPaso { margin:0; color:var(--tenue); font-size:12px; min-height:1.2em; }
+  @keyframes perspectivaGiro { 0%, 100% { transform:perspective(120px) rotateY(-25deg); } 50% { transform:perspective(120px) rotateY(25deg); } }
+  @media (prefers-reduced-motion: reduce) { #cargando .logo { animation:none; } }
   #ayuda { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
   #ayuda[hidden] { display:none; }
   #ayuda .ventana { background:var(--sup); color:var(--txt); border:1px solid var(--linea); border-radius:var(--radio); width:min(980px,100%);
@@ -203,7 +212,7 @@
 </head>
 <body class="dock-right">
 <header>
-  <h1>Perspectiva<small>imagen · video · sin conexion</small></h1>
+  <h1><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9 L28 4 L26 28 L6 24 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>Perspectiva<small>imagen · video · sin conexion</small></h1>
   <label class="archivo" title="Imagen, video u otro fichero: de los demas se muestran metadatos y analisis hex">Abrir archivos<input type="file" id="archivo" multiple></label>
   <button id="btnPegar" title="Pegar imagen del portapapeles (tambien Ctrl+V)">Pegar</button>
   <span id="ocupado"></span>
@@ -539,6 +548,7 @@
   </aside>
 </div>
 
+<div id="cargando" hidden role="status" aria-live="polite"><div class="caja"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9 L28 4 L26 28 L6 24 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><p id="cargandoTexto">Cargando</p><p id="cargandoPaso"></p></div></div>
 <div id="ayuda" hidden role="dialog" aria-modal="true" aria-labelledby="ayudaTitulo">
   <div class="ventana">
     <div class="cab"><h1 id="ayudaTitulo">Ayuda — manual de uso</h1><span class="ayuda" id="ayudaOrigen"></span><button id="ayudaCerrar" title="Cerrar (Esc)">✕</button></div>

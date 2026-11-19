@@ -43,9 +43,17 @@ const carrusel = new RP.Carrusel($("carrusel"), (i) => seleccionar(i), { alQuita
 // su extension) -> herramientas de imagen; otro -> metadatos, analisis hex e imagenes incrustadas.
 const archivos = [];  // {nombre, sha256, clase: imagen|video|archivo, analisis, meta, u8 (salvo video), fuente, video}
 const MIME_FIRMA = { PNG: "image/png", JPEG: "image/jpeg", GIF: "image/gif", BMP: "image/bmp", "WEBP/RIFF": "image/webp" };
+// con aviso de carga (logo y paso en curso: interfaz.js) mientras se lee, se calcula el hash y se decodifica
 async function cargarArchivo(f) {
+  if (window.RP && RP.cargando) RP.cargando(true, f.name || "pegado");
+  try { return await cargarArchivoSinAviso(f); } finally { if (window.RP && RP.cargando) RP.cargando(false); }
+}
+async function cargarArchivoSinAviso(f) {
+  if (window.RP && RP.pasoCarga) RP.pasoCarga("leyendo el fichero");
   const buf = await f.arrayBuffer(), u8 = new Uint8Array(buf);
+  if (window.RP && RP.pasoCarga) RP.pasoCarga("calculando SHA-256");
   const sha = await RP.sha256(buf), analisis = RP.analizarBytes(u8, f.name || "pegado");
+  if (window.RP && RP.pasoCarga) RP.pasoCarga("leyendo metadatos");
   $("ocupado").textContent = `leyendo metadatos de ${f.name}…`;
   const A = { nombre: f.name || "pegado", sha256: sha, analisis, meta: await RP.metadatos(u8, f, analisis), u8: null, hashes: null };
   // los demas hashes (MD5 en JS tarda ~1 s por cada 100-200 MB) se calculan sin retrasar la carga
@@ -62,6 +70,7 @@ async function cargarArchivo(f) {
     $("selVideo").value = videos.length - 1; activarVideo(videos.length - 1); return;
   }
   A.u8 = u8; // se conserva para abrir las imagenes incrustadas
+  if (window.RP && RP.pasoCarga) RP.pasoCarga("decodificando la imagen");
   const url = URL.createObjectURL(new Blob([f], { type: MIME_FIRMA[analisis.tipo] || f.type || "application/octet-stream" }));
   const img = new Image();
   const decodifica = await new Promise((ok) => { img.onload = () => ok(true); img.onerror = () => ok(false); img.src = url; });
@@ -166,6 +175,7 @@ $("btnSiguiente").onclick = () => carrusel.mover(1);
 // ============================================================ video
 function activarVideo(k) {
   const v = videos[k]; $("bloqueVideo").hidden = false; $("bloqueVideo").open = true; video.src = v.url;
+  if (window.RP && RP.mostrarPanel) RP.mostrarPanel("bloqueVideo"); // el panel a la vista, en el bloque Video (interfaz.js)
   mostrarArchivo(v.archivo); actualizarHerramientas();
   // fps declarados por el contenedor: se aplican solo si son constantes (con VFR, solo se informan)
   const c = v.archivo.meta.video;

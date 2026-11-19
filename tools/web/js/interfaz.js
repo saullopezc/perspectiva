@@ -13,6 +13,7 @@
   const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE)) || {}; } catch { return {}; } };
   const guardar = (p) => { try { localStorage.setItem(CLAVE, JSON.stringify(p)); } catch { /* sin almacenamiento */ } };
   const pref = Object.assign({ dock: "right", oculto: false, ancho: 380, alto: 300 }, leer());
+  pref.oculto = false; // al abrir la pagina el panel siempre se ve (se recuerdan su posicion y su tamano, no que se oculto)
   const body = document.body, raiz = document.documentElement;
 
   function aplicar() {
@@ -28,6 +29,20 @@
   }
   document.querySelectorAll("[data-dock]").forEach((b) => (b.onclick = () => { pref.dock = b.dataset.dock; pref.oculto = false; aplicar(); }));
   document.getElementById("btnPanel").onclick = () => { pref.oculto = !pref.oculto; aplicar(); };
+  // muestra el panel y lleva a la vista un bloque (abierto): p. ej. Video al cargar un video
+  RP.mostrarPanel = (idBloque) => {
+    if (pref.oculto) { pref.oculto = false; aplicar(); }
+    const b = idBloque && document.getElementById(idBloque); if (!b) return;
+    b.open = true; requestAnimationFrame(() => b.scrollIntoView({ block: "start", behavior: "smooth" }));
+  };
+  // aviso de carga con el logo: cuenta las cargas en curso (varios ficheros a la vez) y dice el paso actual
+  let cargas = 0;
+  RP.cargando = (activo, nombre = "") => {
+    cargas = Math.max(0, cargas + (activo ? 1 : -1));
+    const c = document.getElementById("cargando"); c.hidden = cargas === 0;
+    if (activo) { document.getElementById("cargandoTexto").textContent = `Cargando ${nombre}`; document.getElementById("cargandoPaso").textContent = ""; }
+  };
+  RP.pasoCarga = (texto) => { document.getElementById("cargandoPaso").textContent = texto + "…"; };
   window.addEventListener("keydown", (e) => {
     if ((e.key === "p" || e.key === "P") && !["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) { pref.oculto = !pref.oculto; aplicar(); }
   });

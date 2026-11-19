@@ -50,8 +50,18 @@ def main(dir_img):
         espera = lambda: pg.wait_for_timeout(350)
         modo = lambda m: (pg.click(f"label:has(input[name=modoGeo][value={m}])"), espera())
 
+        # ---------------- inicio: el panel se ve aunque la ultima vez se ocultara
+        pg.evaluate("() => localStorage.setItem('perspectiva.interfaz', JSON.stringify({ dock: 'right', oculto: true, ancho: 380, alto: 300 }))")
+        pg.reload(); pg.wait_for_timeout(1000)
+        caso("inicio", "el panel se muestra al abrir aunque se hubiera ocultado", not pg.evaluate("() => document.body.classList.contains('panel-oculto')"))
+        pg.evaluate("() => document.querySelectorAll('#panel details.bloque').forEach(x => (x.open = true))")
+        # ---------------- aviso de carga con el logo: aparece durante la carga y se va al terminar
+        pg.evaluate("""() => { window.__vistoCargando = false; new MutationObserver(() => { if (!document.getElementById('cargando').hidden) window.__vistoCargando = true; })
+            .observe(document.getElementById('cargando'), { attributes: true }); }""")
         # ---------------- C: los ajustes son de la imagen actual (por defecto)
         pg.set_input_files("#archivo", [str(a), str(b)]); pg.wait_for_timeout(1200)
+        caso("carga", "el aviso de carga (con logo) aparece al cargar y desaparece al terminar",
+             pg.evaluate("() => window.__vistoCargando && document.getElementById('cargando').hidden && !!document.querySelector('#cargando .logo')"))
         caso("ajustes", "por defecto: 'solo la imagen actual'", pg.input_value("#modoConfig") == "cero")
         pg.evaluate("() => seleccionar(0)"); espera(); poner("[data-p=negativo]", True); espera()
         pg.evaluate("() => seleccionar(1)"); espera(); n2 = pg.is_checked("[data-p=negativo]")
@@ -150,6 +160,13 @@ def main(dir_img):
             pg.set_input_files("#archivo", str(ins / "imagen_con_extension.jpg")); pg.wait_for_timeout(900)
             pg.wait_for_function("() => document.getElementById('hexInfo').textContent.includes('Entropia')", timeout=8000)
             caso("archivo", "control: PNG con extension .jpg -> aviso", "no corresponde al contenido (PNG)" in pg.text_content("#hexInfo"))
+        # ---------------- video: el panel salta al bloque Video, abierto y a la vista
+        pg.click("#btnPanel"); pg.wait_for_timeout(200)  # oculto a proposito
+        pg.evaluate("() => document.querySelector('#panel .contenido').scrollTop = 0")
+        pg.set_input_files("#archivo", str(d / "clip.webm")); pg.wait_for_timeout(1500)
+        v = pg.evaluate("""() => { const b = document.getElementById('bloqueVideo'), c = document.querySelector('#panel .contenido'), rb = b.getBoundingClientRect(), rc = c.getBoundingClientRect();
+            return { panel: !document.body.classList.contains('panel-oculto'), abierto: b.open, visible: !b.hidden, aLaVista: rb.top >= rc.top - 2 && rb.top < rc.bottom - 40 }; }""")
+        caso("video", "al cargar un video el panel se muestra en el bloque Video, abierto y a la vista", all(v.values()), v)
         caso("errores", "sin errores de JS", not errores, errores[:5])
         pg.screenshot(path=str(SALIDA / "edicion.png"))
         nav.close()
