@@ -10,6 +10,7 @@ herramienta no los envía a ningún sitio.
 
 ## Uso
 
+- **En línea:** https://saullopezc.github.io/perspectiva/ (se publica sola cuando las pruebas pasan en verde).
 - **En local:** abrir `tools/web/perspectiva.html` en Chromium o Firefox.
 - **Publicada:** `python3 -I tools/publicar_web.py DESTINO` genera una carpeta estática (`index.html`, módulos, fuentes
   con su licencia, `LEEME.txt` y `SHA256SUMS`) para cualquier alojamiento de páginas estáticas.
@@ -35,7 +36,7 @@ prueba por sí sola una manipulación.
 
 Cada función se prueba en navegador real (Chromium y Firefox) con casos de resultado conocido y controles que
 comprueban que la prueba detecta el fallo que vigila. Los insumos se fabrican con `tests/web/generar_insumos.py`
-(sin fotos externas). En GitHub Actions: `pruebas` (funcionalidad) y `seguridad` (CodeQL, credenciales en la historia,
+(sin fotos externas). En GitHub Actions: `pruebas` (funcionalidad), `pagina` (publica el sitio solo si las pruebas pasan) y `seguridad` (CodeQL, credenciales en la historia,
 carpeta publicable sin términos ni rutas que no deben salir y sin peticiones fuera de su origen).
 
 En local (Python con Pillow, numpy y Playwright; Node 22; FFmpeg y exiftool):
