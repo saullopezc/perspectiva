@@ -67,7 +67,9 @@
   #panel .grid2 { grid-template-columns:minmax(0,1fr); }
   @container (min-width:560px) { #panel .grid2 { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }
   #panel details.bloque { min-width:0; max-width:100%; }
-  #panel label { white-space:nowrap; min-width:0; }
+  /* la etiqueta puede partirse en dos lineas; el valor no (con otras fuentes del sistema "busqueda ± px" desbordaba) */
+  #panel label { min-width:0; }
+  #panel label .v { white-space:nowrap; flex:none; }
   #panel label select, #panel label input[type=number], #panel .fila > select { min-width:0; flex:1 1 auto; width:auto; }
   #panel .fila > select { max-width:100%; }
   #panel .cuerpo { overflow-wrap:anywhere; }

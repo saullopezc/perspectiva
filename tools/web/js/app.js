@@ -695,7 +695,8 @@ async function registrarFuentes(lista, grupo, elegir) {
 }
 registrarFuentes((window.RP && RP.FUENTES_LIBRES) || [], "libres (OFL)", false);
 (() => { // solo abriendo el fichero en local: publicada en un servidor no pide nada fuera de su carpeta
-  if (location.protocol !== "file:") return;
+  // solo si se pide (?fuentes=locales) y en local: por defecto no se pide nada que pueda no existir (la consola queda limpia)
+  if (location.protocol !== "file:" || !/[?&]fuentes=locales\b/.test(location.search)) return;
   const s = document.createElement("script");
   s.src = "../../_local/fonts/fuentes_embebidas.js";
   s.onload = () => registrarFuentes(RP.FUENTES_LOCALES || [], "locales (_local)", true);
