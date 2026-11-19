@@ -100,6 +100,15 @@ async function generarInforme() {
   }
   if (r.retiradas.length) S.push("<h2>Quitados de la sesion</h2><p>Se sacaron de la sesion (el fichero en disco no se toca).</p>"
     + tablaHtml(["nombre", "clase", "SHA-256", "fecha"], r.retiradas.map((x) => [escHtml(x.nombre), escHtml(x.clase), `<code>${escHtml(x.sha256)}</code>`, escHtml(x.fecha)])));
+  // lo que se veia y como estaba el navegador (para repetir la observacion en las mismas condiciones)
+  const v = r.vista;
+  if (v) S.push("<h2>Vista y navegador</h2><p>Lo que se veia al generar el informe y la configuracion con que se veia.</p>"
+    + tablaHtml(["campo", "valor"], [["navegador", escHtml(v.navegador)], ["idioma · zona horaria", escHtml(`${v.idioma} · ${v.zonaHoraria}`)],
+      ["ventana", escHtml(v.ventana)], ["pantalla", escHtml(v.pantalla)], ["densidad de pixeles (cambia con el zoom del navegador)", escHtml(v.densidadPixeles)],
+      ["tema · panel", escHtml(`${v.tema} · ${v.panel}`)], ["lienzo", escHtml(`zoom ${v.lienzo.zoom} · desplazamiento ${v.lienzo.desplazamiento.join(", ")} · ${v.lienzo.tamano}`)],
+      ["salida", escHtml(`zoom ${v.salida.zoom} · encuadre ${v.salida.encuadre.join(", ")} · marco ${v.salida.marco}${v.salida.lienzoPlegado ? " · lienzo plegado" : ""}`)]])
+    + '<div class="imgs">' + (RP.capturaLienzo() ? imgHtml(RP.capturaLienzo(), "lienzo tal como se veia (zoom y puntos marcados)") : "")
+    + (RP.capturaSalidaVisible() ? imgHtml(RP.capturaSalidaVisible(), "salida tal como se veia (zoom y encuadre)") : "") + "</div>");
   // exportaciones
   S.push("<h2>Exportaciones de esta sesion</h2>" + (exportaciones.length ? tablaHtml(["fichero", "contenido", "formato", "bytes", "MD5", "SHA-256", "fecha"],
     exportaciones.map((e) => [escHtml(e.fichero), escHtml(e.contenido), escHtml(e.formato), e.bytes, escHtml(e.md5 || ""), `<code>${escHtml(e.sha256)}</code>`, escHtml(e.fecha)])) : "<p>Ninguna.</p>"));

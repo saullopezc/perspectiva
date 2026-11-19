@@ -210,13 +210,17 @@ imágenes nítidas y grandes la comparación trabaja por bloques para no bloquea
 
 ### 5.11 Exportar, registro e informe
 
-- **Guardar imagen**: salida, salida con plantilla, fuente original o apilado, en PNG, TIFF, BMP o PPM (sin pérdida) o
+- **Guardar imagen**: salida, salida con plantilla, **salida tal como se ve** (con el zoom y el encuadre del marco),
+  **lienzo tal como se ve** (con el zoom y los puntos marcados), fuente original o apilado, en PNG, TIFF, BMP o PPM (sin pérdida) o
   JPEG, WebP o AVIF (con pérdida, con aviso). Escala 1× (píxeles reales) a 8×. Cada exportación anota MD5, SHA-1,
   SHA-256 y SHA-512.
 - **Registro JSON**: fuente (hashes, origen), zona trabajada, parámetros, plantilla, comparación, integridad, ELA,
   apilado, exportaciones y retiradas. **Reproducir JSON** lo vuelve a aplicar sobre la misma fuente (mismo SHA-256).
 - **Informe de análisis**: HTML de un solo fichero, sin dependencias externas, con lo anterior en forma legible e
-  imágenes incrustadas; solo lista los parámetros que difieren de los valores por defecto. Su propio hash queda anotado
+  imágenes incrustadas; solo lista los parámetros que difieren de los valores por defecto. Incluye **Vista y navegador**:
+  capturas del lienzo y de la salida tal como se veían, y la configuración con que se veían (navegador, ventana,
+  pantalla, densidad de píxeles —cambia con el zoom del navegador—, zooms y encuadres, panel, tema, idioma y zona
+  horaria), para repetir la observación en las mismas condiciones. El registro JSON guarda los mismos datos. Su propio hash queda anotado
   en la lista de exportaciones (un fichero no puede contener su propio hash).
 
 ## 6. Atajos

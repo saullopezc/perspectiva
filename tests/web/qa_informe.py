@@ -92,6 +92,17 @@ def main(muestras):
         imgs = pg2.evaluate("() => [...document.images].map(i => i.complete && i.naturalWidth > 0)")
         caso("abrir", "el informe abre sin errores y todas sus imagenes cargan", not err2 and imgs and all(imgs), f"{len(imgs)} imagenes · {err2[:2]}")
         pg2.screenshot(path=str(SALIDA / "informe.png"), full_page=True)
+        # ---------------- vista y navegador: en el informe, en el registro y como exportacion de lo que se ve
+        dv = pg.evaluate("() => ({ dpr: devicePixelRatio, marco: [document.getElementById('salidaWrap').clientWidth, document.getElementById('salidaWrap').clientHeight] })")
+        caso("vista", "el informe trae la seccion Vista y navegador con la densidad de pixeles real y las dos capturas",
+             "Vista y navegador" in t and f">{dv['dpr']}<" in t and "salida tal como se veia" in t and "lienzo tal como se veia" in t)
+        caso("vista", "el registro JSON incluye la vista (ventana, zooms, encuadre)", bool(reg.get("vista")) and "zoom" in reg["vista"]["salida"] and reg["vista"]["densidadPixeles"] == dv["dpr"], reg.get("vista", {}).get("salida"))
+        pg.select_option("#contenidoExp", "vistaSalida")
+        with pg.expect_download() as d:
+            pg.click("#btnExportar")
+        b = d.value.path().read_bytes(); ancho, alto = int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")
+        caso("vista", "exportar «salida tal como se ve»: PNG del tamano del marco en pantalla", b[:4] == b"\x89PNG" and [ancho, alto] == dv["marco"], f"{ancho}x{alto} vs {dv['marco']}")
+        pg.select_option("#contenidoExp", "salida")
         # ---------------- sesion: carrusel (quitar / anadir), documentos y ayuda
         nota = SALIDA / "nota.txt"; nota.write_text("documento de prueba\n")
         pg.set_input_files("#archivo", [str(muestras / "muestra_a.png"), str(nota)]); pg.wait_for_timeout(1000)

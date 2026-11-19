@@ -63,3 +63,29 @@ $("zoomSalida").addEventListener("input", () => {
   vistaSalida.ancla = { mx: W, my: H, u: (W - vistaSalida.x) / z, v: (H - vistaSalida.y) / z };
 });
 new ResizeObserver(() => { if (limpia) colocarSalida(); }).observe(wrapSalida);
+
+// ---------------------------------------------------------------- lo que se ve, para exportarlo o documentarlo
+// la salida tal como se ve en su marco (zoom y encuadre actuales)
+RP.capturaSalidaVisible = () => {
+  if (!limpia || !cvS.width) return null;
+  const W = wrapSalida.clientWidth, H = wrapSalida.clientHeight, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d"); x.fillStyle = getComputedStyle(wrapSalida).backgroundColor || "#000"; x.fillRect(0, 0, W, H);
+  x.imageSmoothingEnabled = false; x.drawImage(cvS, vistaSalida.x, vistaSalida.y);
+  return c;
+};
+// el lienzo tal como se ve (zoom, encuadre y puntos marcados), en pixeles de pantalla
+RP.capturaLienzo = () => { if (!cvF.width) return null; const c = document.createElement("canvas"); c.width = cvF.width; c.height = cvF.height; c.getContext("2d").drawImage(cvF, 0, 0); return c; };
+// configuracion del navegador y de la vista en el momento de la captura
+RP.datosVista = () => {
+  const zl = +$("zoomSalida").value;
+  return {
+    navegador: navigator.userAgent, idioma: navigator.language, zonaHoraria: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    ventana: `${innerWidth} x ${innerHeight} px`, pantalla: `${screen.width} x ${screen.height} px · ${screen.colorDepth} bits de color`,
+    densidadPixeles: devicePixelRatio, // cambia con el zoom del navegador (Ctrl + / Ctrl -)
+    tema: matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro",
+    panel: [...document.body.classList].find((k) => k.startsWith("dock-"))?.slice(5) + (document.body.classList.contains("panel-oculto") ? " (oculto)" : ""),
+    lienzo: { zoom: +(vista.s / (devicePixelRatio || 1)).toFixed(4), desplazamiento: [Math.round(vista.ox), Math.round(vista.oy)], tamano: `${cvF.width} x ${cvF.height} px de pantalla` },
+    salida: { zoom: +zl.toFixed(4), encuadre: [Math.round(vistaSalida.x ?? 0), Math.round(vistaSalida.y ?? 0)], marco: `${wrapSalida.clientWidth} x ${wrapSalida.clientHeight} px`,
+      lienzoPlegado: !$("bloqueLienzo").open },
+  };
+};

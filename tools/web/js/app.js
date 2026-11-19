@@ -519,6 +519,7 @@ function imagenAExportar() {
   const c = $("contenidoExp").value, F = F0();
   if (c === "fuente") return F ? F.datos : null;
   if (c === "salidaPlantilla") return cvS.width ? ctxS.getImageData(0, 0, cvS.width, cvS.height) : null;
+  if (c === "vistaSalida" || c === "vistaLienzo") { const v = c === "vistaSalida" ? RP.capturaSalidaVisible() : RP.capturaLienzo(); return v ? v.getContext("2d").getImageData(0, 0, v.width, v.height) : null; }
   if (c === "pila") {
     if (!pila.length || !ultimaPlana) return null;
     const a = apilado(ultimaPlana), n = a.w * a.h;
@@ -529,7 +530,7 @@ function imagenAExportar() {
 async function exportar() {
   const img0 = imagenAExportar();
   if (!img0) { alert("No hay nada que exportar con ese contenido"); return; }
-  const esc = $("contenidoExp").value === "salidaPlantilla" ? 1 : +$("escalaExp").value;
+  const esc = ["salidaPlantilla", "vistaSalida", "vistaLienzo"].includes($("contenidoExp").value) ? 1 : +$("escalaExp").value;
   const img = RP.escalarEntero(img0, esc), fmt = $("formatoExp").value;
   try {
     const { blob, ext } = await RP.codificar(img, fmt, +$("calidadExp").value);
@@ -546,7 +547,7 @@ $("btnExportar").onclick = exportar; $("btnExportarRapido").onclick = exportar;
 async function copiar() {
   const img0 = imagenAExportar();
   if (!img0) { alert("No hay nada que copiar con ese contenido"); return; }
-  const esc = $("contenidoExp").value === "salidaPlantilla" ? 1 : +$("escalaExp").value, img = RP.escalarEntero(img0, esc);
+  const esc = ["salidaPlantilla", "vistaSalida", "vistaLienzo"].includes($("contenidoExp").value) ? 1 : +$("escalaExp").value, img = RP.escalarEntero(img0, esc);
   try {
     const { blob } = await RP.codificar(img, "png");
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -584,6 +585,7 @@ function registro() {
     escalera: ultimosPasos, nucleo: (RP.NUCLEOS[P.interp] || {}).desc || P.interp,
     apilado: $("verPila").checked ? infoApilado() : null,
     retiradas: typeof retiradas !== "undefined" ? retiradas : [],
+    vista: RP.datosVista ? RP.datosVista() : null, // navegador, ventana, densidad de pixeles, zooms y encuadres (vistas.js)
     plantilla: $("plantilla").value || null, plantillaParametros: $("plantilla").value ? plantillaParams() : null,
     comparacion: typeof ultimoRanking !== "undefined" && ultimoRanking ? { ...ultimoRanking, polaridadClara: $("textoClaro").checked } : null, exportaciones,
     nota: "Reproducible cargando la misma fuente (mismo SHA-256; si es fotograma, el mismo video y t) y este JSON.",
