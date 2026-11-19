@@ -3,11 +3,13 @@
 # qa_publicado.py — Prueba la carpeta publicable (tools/publicar_web.py) servida por
 # HTTP como en un alojamiento real: carga sin errores, ninguna peticion sale de su
 # origen, no aparecen terminos retirados en lo que se ve, una imagen se procesa, la
-# ayuda abre y el informe se descarga.
+# ayuda abre, el informe se descarga y el boton Actualizar detecta una version nueva.
 #
 # Uso:  [QA_NAV=firefox] .venv-qa/bin/python tests/web/qa_publicado.py CARPETA_PUBLICADA IMAGEN
 # Author: Saul López
 # Date:   2026-11-19
+# Modified By:   Saul López
+# Modified Date: 2026-11-19
 # -----------------------------------------------------------------------------
 import functools
 import http.server
@@ -62,6 +64,14 @@ def main(carpeta, imagen):
         pg.click("#btnAyuda"); pg.wait_for_timeout(200)
         ay = pg.text_content("#ayudaCuerpo")
         caso("ayuda", "la ayuda abre y tampoco usa esos terminos", "Manual de uso" in ay and not re.search(r"forens|peric|perit|dictamen|evidencia", ay, re.I))
+        lic = pg.evaluate("""async () => { const enlaces = [...document.querySelectorAll('#ayudaCuerpo a[href^="fuentes/"]')].map(a => a.getAttribute('href'));
+            const ok = []; for (const h of enlaces) ok.push((await fetch(h)).ok);
+            const t = async (u) => { const r = await fetch(u); return r.ok ? (await r.text()).slice(0, 60) : null; };
+            return { seccion: !!document.getElementById('ay-licencias'), fuentes: enlaces.length, fuentesOk: ok.every(Boolean), licencia: await t('LICENSE.txt'), aviso: await t('NOTICE.txt') }; }""")
+        caso("licencias", "la Ayuda trae la seccion Licencias y las 5 licencias OFL de las fuentes responden", lic["seccion"] and lic["fuentes"] == 5 and lic["fuentesOk"], lic)
+        caso("licencias", "el sitio sirve LICENSE.txt (Apache 2.0) y NOTICE.txt", lic["licencia"] and "Apache License" in lic["licencia"] and lic["aviso"] and "Perspectiva" in lic["aviso"], lic["licencia"])
+        gh = pg.evaluate("() => { const a = document.getElementById('enlaceRepo'); return a && { href: a.href, target: a.target, rel: a.rel }; }")
+        caso("licencias", "enlace a GitHub en la cabecera, en otra pestana y con noopener", gh and gh["href"].startswith("https://github.com/") and gh["target"] == "_blank" and "noopener" in gh["rel"], gh)
         pg.keyboard.press("Escape")
         pg.evaluate("() => document.querySelectorAll('#panel details.bloque').forEach(d => (d.open = true))")
         with pg.expect_download() as d:
@@ -69,6 +79,25 @@ def main(carpeta, imagen):
         t = d.value.path().read_text(encoding="utf-8")
         caso("informe", "el informe se descarga, tiene sus secciones y no usa esos terminos",
              "Archivos cargados" in t and "Registro JSON" in t and not re.search(r"forens|peric|perit|dictamen|evidencia", t, re.I))
+        # boton Actualizar: primero al dia (la version incrustada coincide con version.json), luego una publicacion
+        # nueva simulada (version.json interceptado): pregunta, avisa de lo que se pierde y recarga con ?v=<nueva>
+        propia = pg.get_attribute('meta[name="perspectiva-version"]', "content")
+        servida = json.loads((carpeta / "version.json").read_text())["version"]
+        caso("version", "index.html lleva la version publicada en version.json", propia == servida and propia != "desarrollo", f"{propia} / {servida}")
+        pg.click("#btnVersion"); pg.wait_for_function("() => /Al dia|No se pudo/.test(document.getElementById('estado').textContent)", timeout=5000)
+        caso("version", "con la version publicada dice que esta al dia", "Al dia" in pg.text_content("#estado"), pg.text_content("#estado"))
+        pg.route("**/version.json*", lambda r: r.fulfill(status=200, content_type="application/json", body='{"version": "0123456789abcdef"}'))
+        dialogos = []
+        def responder(d):
+            dialogos.append(d.message); d.dismiss() if len(dialogos) == 1 else d.accept()
+        pg.on("dialog", responder)
+        pg.click("#btnVersion"); pg.wait_for_function("() => /sin cargar/.test(document.getElementById('estado').textContent)", timeout=5000)
+        caso("version", "con una version nueva pregunta y avisa de que se pierde lo cargado; si se cancela no recarga",
+             dialogos and "0123456789abcdef" in dialogos[0] and "descarta" in dialogos[0] and pg.evaluate("() => limpia.width") > 0, dialogos[:1])
+        with pg.expect_navigation():
+            pg.click("#btnVersion")
+        pg.wait_for_timeout(800)
+        caso("version", "si se acepta, recarga con ?v=<version nueva>", "?v=0123456789abcdef" in pg.url and pg.title() == "Perspectiva", pg.url)
         caso("errores", "sin errores de JS", not errores, errores[:5])
         pg.screenshot(path=str(SALIDA / "publicado.png"))
         nav.close()

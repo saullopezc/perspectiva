@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -----------------------------------------------------------------------------
 # publicar_web.py — Prepara la carpeta publicable de la herramienta web (Perspectiva):
-# index.html + js/ + fuentes libres con sus licencias + LEEME.txt + SHA256SUMS.
+# index.html + js/ + fuentes libres con sus licencias + LICENSE/NOTICE + version.json + LEEME.txt + SHA256SUMS.
 # Solo copia una lista cerrada de ficheros de tools/web (nada fuera de la
 # herramienta) y la barre antes de darla por buena: terminos que no deben aparecer, rutas
 # del equipo, referencias a ficheros fuera de la carpeta. NO publica nada: subirla
@@ -12,6 +12,7 @@
 # Date:   2026-11-19
 # -----------------------------------------------------------------------------
 import hashlib
+import json
 import re
 import shutil
 import sys
@@ -34,7 +35,10 @@ cuya integridad se pueda comprobar con SHA256SUMS (sha256sum -c SHA256SUMS).
 
 Ayuda: boton "Ayuda" de la pagina (o F1).
 
-Licencias: las fuentes de fuentes/ son SIL Open Font License 1.1 (texto en fuentes/<familia>/OFL.txt).
+Actualizar: el boton "Actualizar" compara la version abierta con version.json del sitio y, si hay una nueva, recarga.
+version.json se genera al preparar la carpeta y se publica junto a index.html.
+
+Licencias: Perspectiva, Apache License 2.0 (LICENSE.txt y NOTICE.txt); las fuentes de fuentes/, SIL Open Font\nLicense 1.1 (texto en fuentes/<familia>/OFL.txt).
 """
 
 
@@ -50,6 +54,12 @@ def main():
         (destino / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, destino / rel)
     (destino / "LEEME.txt").write_text(LEEME, encoding="utf-8")
+    # la licencia acompana a cada redistribucion (Apache-2.0, apartado 4): LICENSE y NOTICE del repositorio publico
+    for nombre in ("LICENSE", "NOTICE"):
+        origen = next((c for c in (RAIZ / nombre, RAIZ / "publico" / "perspectiva" / nombre) if c.is_file()), None)
+        if origen is None:
+            sys.exit(f"ERROR: falta {nombre} (raiz del repositorio o publico/perspectiva)")
+        shutil.copyfile(origen, destino / f"{nombre}.txt")
     # cada modulo se enlaza con la huella de su contenido (?v=...): el alojamiento cachea cada fichero por separado
     # (GitHub Pages: max-age=600) y, tras un despliegue, un index.html nuevo podia juntarse con modulos viejos
     idx = destino / "index.html"
@@ -57,6 +67,17 @@ def main():
                       lambda m: f'<script src="{m.group(1)}?v={hashlib.sha256((destino / m.group(1)).read_bytes()).hexdigest()[:12]}"></script>'
                       if (destino / m.group(1)).is_file() else m.group(0), idx.read_text(encoding="utf-8"))
     idx.write_text(html_idx, encoding="utf-8")
+    # version del sitio (boton «Actualizar», js/version.js): huella de todo lo publicado, incrustada en index.html
+    # y servida en version.json; la pagina compara la suya con la publicada para saber si esta desactualizada
+    huella = hashlib.sha256()
+    for f in sorted(p for p in destino.rglob("*") if p.is_file()):
+        huella.update(f"{f.relative_to(destino).as_posix()}\0{hashlib.sha256(f.read_bytes()).hexdigest()}\n".encode())
+    version = huella.hexdigest()[:16]
+    marca = '<meta name="perspectiva-version" content="desarrollo">'
+    if html_idx.count(marca) != 1:
+        sys.exit(f"ERROR: index.html debe traer una vez {marca}")
+    idx.write_text(html_idx.replace(marca, f'<meta name="perspectiva-version" content="{version}">'), encoding="utf-8")
+    (destino / "version.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
     # barrido de lo que se va a publicar
     problemas = []
     html = (destino / "index.html").read_text(encoding="utf-8")

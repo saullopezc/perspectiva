@@ -41,11 +41,17 @@ siempre se muestra al abrir la página; se recuerdan su posición y su tamaño.
 
 Las fuentes tipográficas libres (OFL) vienen incluidas.
 
+**Actualizar.** En la versión publicada, el botón **Actualizar** de la cabecera comprueba si el sitio tiene una versión
+más nueva que la abierta (compara la versión de la página con el `version.json` del sitio, sin pasar por la caché). Si
+la hay, pregunta antes de recargar: recargar descarta las imágenes, los puntos y los ajustes de la sesión, así que
+conviene exportar antes lo que se necesite. Abierta como fichero local o desde el repositorio no hay versión con la que
+comparar, y el botón lo dice.
+
 ## 3. Pantalla
 
 | Zona | Contenido |
 |---|---|
-| Cabecera | abrir, pegar, estado (imagen actual y tamaño), **Ayuda** (este manual), mostrar u ocultar el panel (`P`) y su posición |
+| Cabecera | abrir, pegar, estado (imagen actual y tamaño), **Actualizar** (versión nueva del sitio), **GitHub** (código fuente y licencia, en otra pestaña), **Ayuda** (este manual y las licencias), mostrar u ocultar el panel (`P`) y su posición |
 | Carrusel | una hoja por imagen o fotograma; la actual, de frente. Se quitan con la ✕ de la hoja y se añaden con el botón **＋** |
 | Lienzo y geometría | la imagen original; aquí se elige qué zona se trabaja. Arrastrar mueve la imagen; un clic marca un punto |
 | Salida | el resultado con los ajustes aplicados, en un marco fijo: rueda para ampliar hacia el cursor, arrastrar para moverlo, doble clic para verlo entero |

@@ -13,7 +13,8 @@ herramienta no los envía a ningún sitio.
 - **En línea:** https://saullopezc.github.io/perspectiva/ (se publica sola cuando las pruebas pasan en verde).
 - **En local:** abrir `tools/web/perspectiva.html` en Chromium o Firefox.
 - **Publicada:** `python3 -I tools/publicar_web.py DESTINO` genera una carpeta estática (`index.html`, módulos, fuentes
-  con su licencia, `LEEME.txt` y `SHA256SUMS`) para cualquier alojamiento de páginas estáticas.
+  con su licencia, `LICENSE.txt`, `NOTICE.txt`, `version.json`, `LEEME.txt` y `SHA256SUMS`) para cualquier alojamiento de
+  páginas estáticas. Sitio: <https://saullopezc.github.io/perspectiva/> (botón *Actualizar* para traer la última versión).
 - **Ayuda:** botón *Ayuda* (o `F1`) dentro de la página; el mismo texto está en [docs/MANUAL_perspectiva.md](docs/MANUAL_perspectiva.md).
 
 ## Qué hace

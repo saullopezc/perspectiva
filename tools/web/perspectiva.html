@@ -16,6 +16,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="perspectiva-version" content="desarrollo">
 <title>Perspectiva</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 9 L28 4 L26 28 L6 24 Z' fill='none' stroke='%235aa9ff' stroke-width='3'/%3E%3C/svg%3E">
 <style>
@@ -179,6 +180,9 @@
   button { background:transparent; color:var(--txt); border:1px solid var(--linea2); border-radius:6px; padding:5px 10px; cursor:pointer;
            font:inherit; font-size:12.5px; transition:background .15s, border-color .15s; }
   button:hover { background:var(--sup2); border-color:var(--tenue); }
+  a.boton { color:var(--txt); border:1px solid var(--linea2); border-radius:6px; padding:5px 10px; text-decoration:none; font-size:12px; white-space:nowrap; }
+  a.boton:hover { background:var(--sup2); border-color:var(--tenue); } a.boton.chico { padding:3px 8px; }
+  #ayudaCuerpo a { color:var(--acento); }
   button:focus-visible, summary:focus-visible { outline:2px solid var(--acento); outline-offset:1px; }
   button.primario { background:var(--acento); color:var(--acento-txt); border-color:var(--acento); font-weight:600; }
   button.primario:hover { filter:brightness(1.08); background:var(--acento); }
@@ -222,7 +226,9 @@
   <button id="btnPegar" title="Pegar imagen del portapapeles (tambien Ctrl+V)">Pegar</button>
   <span id="ocupado"></span>
   <span id="estado">Arrastra, pega o elige archivos</span>
-  <button id="btnAyuda" title="Manual de uso (F1 o ?)">Ayuda</button>
+  <button id="btnVersion">Actualizar</button>
+  <a class="boton" id="enlaceRepo" href="https://github.com/saullopezc/perspectiva" target="_blank" rel="noopener noreferrer" title="Codigo fuente, licencia y novedades (se abre en otra pestana)">GitHub</a>
+  <button id="btnAyuda" title="Manual de uso y licencias (F1 o ?)">Ayuda</button>
   <button id="btnPanel" title="Mostrar/ocultar panel (P)">Panel</button>
   <span class="dock" title="Posicion del panel">
     <button data-dock="left" title="Izquierda">◧</button><button data-dock="right" title="Derecha">◨</button>
@@ -557,7 +563,7 @@
 <div id="cargando" hidden role="status" aria-live="polite"><div class="caja"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 9 L28 4 L26 28 L6 24 Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg><p id="cargandoTexto">Cargando</p><p id="cargandoPaso"></p></div></div>
 <div id="ayuda" hidden role="dialog" aria-modal="true" aria-labelledby="ayudaTitulo">
   <div class="ventana">
-    <div class="cab"><h1 id="ayudaTitulo">Ayuda — manual de uso</h1><span class="ayuda" id="ayudaOrigen"></span><button id="ayudaCerrar" title="Cerrar (Esc)">✕</button></div>
+    <div class="cab"><h1 id="ayudaTitulo">Ayuda — manual de uso</h1><span class="ayuda" id="ayudaOrigen"></span><a class="boton chico" href="#ay-licencias" id="irLicencias">Licencias</a><a class="boton chico" href="https://github.com/saullopezc/perspectiva" target="_blank" rel="noopener noreferrer">GitHub</a><button id="ayudaCerrar" title="Cerrar (Esc)">✕</button></div>
     <div id="ayudaCuerpo"></div>
   </div>
 </div>
@@ -591,5 +597,6 @@
 <script src="js/ayuda_contenido.js"></script>
 <script src="js/apilado.js"></script>
 <script src="js/interfaz.js"></script>
+<script src="js/version.js"></script>
 </body>
 </html>
