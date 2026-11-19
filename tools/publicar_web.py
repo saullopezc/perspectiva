@@ -50,10 +50,18 @@ def main():
         (destino / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, destino / rel)
     (destino / "LEEME.txt").write_text(LEEME, encoding="utf-8")
+    # cada modulo se enlaza con la huella de su contenido (?v=...): el alojamiento cachea cada fichero por separado
+    # (GitHub Pages: max-age=600) y, tras un despliegue, un index.html nuevo podia juntarse con modulos viejos
+    idx = destino / "index.html"
+    html_idx = re.sub(r'<script src="([^"?]+)"></script>',
+                      lambda m: f'<script src="{m.group(1)}?v={hashlib.sha256((destino / m.group(1)).read_bytes()).hexdigest()[:12]}"></script>'
+                      if (destino / m.group(1)).is_file() else m.group(0), idx.read_text(encoding="utf-8"))
+    idx.write_text(html_idx, encoding="utf-8")
     # barrido de lo que se va a publicar
     problemas = []
     html = (destino / "index.html").read_text(encoding="utf-8")
     for ref in re.findall(r'<script src="([^"]+)"', html):
+        ref = ref.split("?")[0]
         if not (destino / ref).is_file():
             problemas.append(f"index.html carga {ref}, que no esta en la carpeta")
     for f in sorted(destino.rglob("*")):
