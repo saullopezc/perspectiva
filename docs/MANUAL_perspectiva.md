@@ -185,8 +185,10 @@ imágenes nítidas y grandes la comparación trabaja por bloques para no bloquea
   0,0009 la media con la misma deconvolución y 0,0008 la superresolución. **La mayor parte de la ganancia viene de la
   deconvolución.** Necesita fotogramas que muestreen la escena de forma independiente: en un vídeo muy comprimido los
   fotogramas consecutivos se predicen unos de otros y apenas aportan detalle nuevo.
-- Si el objeto se mueve rápido, subir *búsqueda* en el seguimiento por encima de lo que se desplaza entre fotogramas
-  (por defecto 12 px). La pila de un rango se rectifica con los ajustes del fotograma de partida.
+- *búsqueda* es cuánto puede haberse movido cada punto entre un fotograma y el siguiente (por defecto 12 px). Si el
+  objeto se mueve más y no se encuentra, se reintenta solo con la búsqueda máxima (60 px), y el aviso lo dice. Un
+  fotograma donde no se encuentra el objeto **conserva su geometría** (vacía o la marcada a mano): no se apila ni recibe
+  esquinas estimadas. La pila de un rango se rectifica con los ajustes del fotograma de partida.
 
 ### 5.9 Integridad de la imagen (indicios)
 

@@ -29,26 +29,39 @@ function seguirReferencias(ref, objetivos) {
   const validos = objetivos.filter((F) => F !== ref && F.w === ref.w && F.h === ref.h);
   const adelante = validos.filter((F) => fuentes.indexOf(F) > iRef).sort((a, b) => fuentes.indexOf(a) - fuentes.indexOf(b));
   const atras = validos.filter((F) => fuentes.indexOf(F) < iRef).sort((a, b) => fuentes.indexOf(b) - fuentes.indexOf(a));
-  let ok = 0, fallo = 0;
+  let ok = 0, fallo = 0, ampliados = 0;
+  const intentar = (F, lf, prev, rB) => {
+    const r = P0.map((p, i) => RP.seguirPunto(lr, lf, F.w, F.h, p, prev[i], o.rP, rB));
+    return { r, rB, bien: r.every((x) => x && x.ncc >= o.nccMin && !x.enBorde), media: r.reduce((s, x) => s + (x ? x.ncc : 0), 0) / r.length };
+  };
   for (const cadena of [adelante, atras]) {
     let prev = P0;
     for (const F of cadena) {
-      const lf = lumDe(F), r = P0.map((p, i) => RP.seguirPunto(lr, lf, F.w, F.h, p, prev[i], o.rP, o.rB));
-      const ncc = r.map((x) => (x ? +x.ncc.toFixed(4) : null)), bien = r.every((x) => x && x.ncc >= o.nccMin && !x.enBorde);
-      const pts = r.map((x, i) => (x ? x.p : [...prev[i]]));
-      if (modoG === "esquinas") F.esquinas = pts;
-      else if (modoG === "aristas") F.aristas = pts;
-      else if (modoG === "recorte") F.recorte = pts;
-      else { F.control = pts; F.controlRef = ref.controlRef.map((c) => ({ id: c.id, xy: [...c.xy] })); } // N puntos: mismas referencias en cm
-      F.seguimiento = { referencia: ref.nombre, sha256Referencia: ref.sha256, modo: modoG, ncc, ok: bien, parche: o.rP, busqueda: o.rB, nccMin: o.nccMin };
-      if (bien) { ok++; prev = pts; } else fallo++;
+      const lf = lumDe(F);
+      // si el objeto se mueve mas de lo que abarca la busqueda, falla: se reintenta solo con la busqueda maxima
+      let t = intentar(F, lf, prev, o.rB);
+      if (!t.bien && o.rB < BUSQUEDA_MAX) { const t2 = intentar(F, lf, prev, BUSQUEDA_MAX); if (t2.bien || t2.media > t.media) t = t2; if (t.bien && t.rB > o.rB) ampliados++; }
+      const ncc = t.r.map((x) => (x ? +x.ncc.toFixed(4) : null)), pts = t.r.map((x, i) => (x ? x.p : [...prev[i]]));
+      // solo se escriben los puntos si se encontraron: un fotograma donde no se halla el objeto conserva su geometria
+      // (vacia o la marcada a mano) en vez de recibir una estimacion erronea
+      if (t.bien) {
+        if (modoG === "esquinas") F.esquinas = pts;
+        else if (modoG === "aristas") F.aristas = pts;
+        else if (modoG === "recorte") F.recorte = pts;
+        else { F.control = pts; F.controlRef = ref.controlRef.map((c) => ({ id: c.id, xy: [...c.xy] })); } // N puntos: mismas referencias en cm
+      }
+      F.seguimiento = { referencia: ref.nombre, sha256Referencia: ref.sha256, modo: modoG, ncc, ok: t.bien, parche: o.rP, busqueda: t.rB, nccMin: o.nccMin };
+      if (t.bien) { ok++; prev = pts; } else fallo++;
     }
   }
   ref.seguimiento = { referencia: ref.nombre, sha256Referencia: ref.sha256, modo: modoG, ncc: P0.map(() => 1), ok: true };
-  return { ok, fallo, total: validos.length };
+  return { ok, fallo, total: validos.length, ampliados };
 }
+const BUSQUEDA_MAX = 60; // tope del control «busqueda ± px»
 function informarSeguimiento(r) {
-  $("infoSeguir").textContent = r.motivo || `seguidos ${r.ok}/${r.total} (NCC >= ${$("nccMin").value})` + (r.fallo ? ` · ${r.fallo} por debajo: no se apilan` : "");
+  $("infoSeguir").textContent = r.motivo || `seguidos ${r.ok}/${r.total} (NCC >= ${$("nccMin").value})` +
+    (r.ampliados ? ` · ${r.ampliados} con la busqueda ampliada a ${BUSQUEDA_MAX} px (el objeto se mueve mas de ${$("rBusqueda").value} px por fotograma)` : "") +
+    (r.fallo ? ` · ${r.fallo} sin encontrar: no se apilan y conservan su geometria` : "");
 }
 
 // ------------------------------------------------------------ pila

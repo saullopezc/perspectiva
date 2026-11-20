@@ -141,6 +141,21 @@ def main(dir_img):
         otro = pg.evaluate("""(iref) => { const ref = fuentes[iref], nuevo = F0(); nuevo.origen.sha256Video = 'otro'; const antes = JSON.stringify(nuevo.esquinas);
             nuevo.esquinas = ref.esquinas.map(p => [...p]); trasCaptura(ref, nuevo); return JSON.stringify(nuevo.esquinas) === JSON.stringify(ref.esquinas); }""", i_ref)
         caso("seguir", "control: de otro video no se siguen (se quedan las coordenadas copiadas)", otro)
+        # objeto que se mueve mas que la busqueda (25 px con busqueda 12): se encuentra al reintentar con la busqueda maxima;
+        # y un fotograma donde no esta (gris liso) no se halla y conserva su geometria vacia en vez de recibir una estimacion
+        lejos = pg.evaluate("""(iref) => { const ref = fuentes[iref], hacer = (dx, liso) => { const c = document.createElement('canvas'); c.width = ref.w; c.height = ref.h;
+              const x = c.getContext('2d'); x.fillStyle = '#777'; x.fillRect(0, 0, ref.w, ref.h); if (!liso) x.drawImage(ref.img, dx, 0);
+              const F = { tipo: 'derivada', nombre: liso ? 'liso' : 'desplazada_25', sha256: (liso ? 'b' : 'a').repeat(64), origen: null, w: ref.w, h: ref.h, img: c,
+                datos: x.getImageData(0, 0, ref.w, ref.h) }; fuentes.push(F); F.esquinas = []; F.aristas = []; F.control = []; F.controlRef = []; F.recorte = []; return F; };
+            const a = hacer(25, false), b = hacer(0, true); const s = document.getElementById('rBusqueda'); s.value = 12; s.dispatchEvent(new Event('input'));
+            const r = seguirReferencias(ref, [a, b]); informarSeguimiento(r);
+            const err = Math.max(...ref.esquinas.map((p, i) => Math.hypot(a.esquinas[i][0] - p[0] - 25, a.esquinas[i][1] - p[1])));
+            const out = { r, err, busquedaUsada: a.seguimiento.busqueda, lisoEsquinas: b.esquinas.length, lisoOk: b.seguimiento.ok, info: document.getElementById('infoSeguir').textContent };
+            fuentes.splice(fuentes.indexOf(a), 1); fuentes.splice(fuentes.indexOf(b), 1); return out; }""", i_ref)
+        caso("seguir", "objeto desplazado 25 px con busqueda 12: se encuentra al ampliar la busqueda (error < 0.25 px) y lo dice",
+             lejos["r"]["ampliados"] == 1 and lejos["busquedaUsada"] == 60 and lejos["err"] < 0.25 and "ampliada" in lejos["info"], lejos)
+        caso("seguir", "control: un fotograma sin el objeto no se halla y conserva su geometria (no recibe esquinas erroneas)",
+             lejos["lisoEsquinas"] == 0 and lejos["lisoOk"] is False and "sin encontrar" in lejos["info"], lejos)
         # ---------------- lienzo plegado: la salida gana el espacio
         w0 = pg.locator("#salidaWrap").bounding_box()["width"]
         pg.click("#btnAmpliarSalida"); pg.wait_for_timeout(500)
