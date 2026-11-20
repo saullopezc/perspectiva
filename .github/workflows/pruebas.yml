@@ -9,7 +9,9 @@ name: pruebas
 
 on:
   push:
+    branches: [main]   # gitflow: el resto de ramas se prueba en su pull request
   pull_request:
+    branches: [main, develop]   # proteccion de rama: no se fusiona sin pasar estos trabajos
   workflow_dispatch:
 
 permissions:
