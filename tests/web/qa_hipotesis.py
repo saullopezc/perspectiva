@@ -170,6 +170,16 @@ def main(insumos):
             document.getElementById('autoSeguir').checked = true; document.getElementById('autoApilar').checked = true;
             trasRango(ref, nuevos); return { pila: pila.length, ver: document.getElementById('verPila').checked, info: document.getElementById('infoSeguir').textContent, n: document.getElementById('nPila').textContent }; }""")
         caso("control", "rango de video en modo N puntos: sigue y apila la referencia y los 2 capturados", ap["pila"] == 3 and ap["ver"], ap)
+        # como en el uso real: tras capturar, la seleccionada es el ULTIMO fotograma (ajustes por defecto, sin interpolar); la pila
+        # se tiene que rectificar con los ajustes de la referencia (aqui bicubica), y la vista vuelve a la referencia
+        ai = pg.evaluate("""() => { const ref = fuentes[fuentes.length - 3], nuevos = fuentes.slice(-2);
+            seleccionar(fuentes.indexOf(ref)); const e = document.querySelector('[data-p=interp]'); e.value = 'bicubica'; e.dispatchEvent(new Event('input'));
+            nuevos.forEach(F => { F.control = []; F.controlRef = []; delete F.config; }); seleccionar(fuentes.indexOf(nuevos[1]));
+            const interpUltimo = parametros().interp; trasRango(ref, nuevos);
+            const plano = rectificarPlano(ref, parametros()); let d = 0; for (let i = 0; i < plano.rgb.length; i++) d = Math.max(d, Math.abs(plano.rgb[i] - pila[0].rgb[i]));
+            return { interpUltimo, actualEsRef: F0() === ref, interp: parametros().interp, difPlano: d }; }""")
+        caso("control", "rango: la pila usa los ajustes de la referencia (no los del ultimo capturado) y la vista vuelve a ella",
+             ai["interpUltimo"] == "vecino" and ai["actualEsRef"] and ai["interp"] == "bicubica" and ai["difPlano"] < 1e-3, ai)
         # hashes: los que muestra la herramienta = los de hashlib sobre el mismo fichero (y los del exportado)
         muestra = insumos / "muestra_b.png"; b = muestra.read_bytes()
         esperado = {k: hashlib.new(k, b).hexdigest() for k in ("md5", "sha1", "sha256", "sha512")}

@@ -172,6 +172,68 @@ def integridad(d, base):
         subprocess.run(["exiftool", "-q", "-overwrite_original", f"-ThumbnailImage<={d / f'_mini_{nombre}.jpg'}", str(d / f"{nombre}.jpg")], check=True)
 
 
+def textura_natural(w, h, semilla):
+    """Textura sin repeticiones (ruido fractal + manchas y trazos al azar): ningun trozo se parece a otro."""
+    r = np.random.default_rng(semilla)
+    acc = np.zeros((h, w, 3), np.float32)
+    for o, amp in ((8, 60), (16, 40), (32, 25), (64, 15), (128, 8)):
+        cap = r.uniform(0, 255, (max(2, h * o // 800), max(2, w * o // 800), 3)).astype(np.uint8)
+        acc += amp * (np.asarray(Image.fromarray(cap).resize((w, h), Image.BICUBIC), np.float32) / 255 - 0.5)
+    im = Image.fromarray((acc + 128).clip(0, 255).astype(np.uint8)); dr = ImageDraw.Draw(im)
+    for _ in range(60):
+        x, y, a, b = r.integers(0, w), r.integers(0, h), r.integers(4, 40), r.integers(4, 40)
+        dr.ellipse([x - a, y - b, x + a, y + b], fill=tuple(int(v) for v in r.integers(30, 225, 3)))
+    for _ in range(40):
+        dr.line([tuple(int(v) for v in r.integers(0, (w, h))), tuple(int(v) for v in r.integers(0, (w, h)))], fill=tuple(int(v) for v in r.integers(0, 255, 3)), width=int(r.integers(1, 4)))
+    return Image.fromarray((np.asarray(im, np.float32) + r.normal(0, 3, (h, w, 3))).clip(0, 255).astype(np.uint8))
+
+
+def clonado(d):
+    """Copy-move de verdad conocida: un trozo copiado en otra parte (traslacion, giro 10 grados, escala 1.1), JPEG q90; control sin clonar."""
+    d.mkdir(parents=True, exist_ok=True)
+    base = textura_natural(800, 600, 21)
+    base.save(d / "clonado_control.jpg", quality=90)
+    origen, destino, (pw, ph) = (90, 80), (520, 360), (150, 120)
+    verdad = {}
+    for nombre, giro, escala in (("traslacion", 0, 1.0), ("giro10", 10, 1.0), ("escala110", 0, 1.1)):
+        m = 40  # margen para girar sin esquinas vacias
+        trozo = base.crop((origen[0] - m, origen[1] - m, origen[0] + pw + m, origen[1] + ph + m))
+        if giro:
+            trozo = trozo.rotate(giro, resample=Image.BICUBIC)
+        if escala != 1.0:
+            trozo = trozo.resize((round(trozo.width * escala), round(trozo.height * escala)), Image.BICUBIC)
+        cx, cy = trozo.width / 2, trozo.height / 2
+        tw, th = round(pw * escala), round(ph * escala)
+        trozo = trozo.crop((round(cx - tw / 2), round(cy - th / 2), round(cx - tw / 2) + tw, round(cy - th / 2) + th))
+        im = base.copy(); im.paste(trozo, destino); im.save(d / f"clonado_{nombre}.jpg", quality=90)
+        verdad[nombre] = {"origen_x0y0x1y1": [origen[0], origen[1], origen[0] + pw, origen[1] + ph],
+                          "destino_x0y0x1y1": [destino[0], destino[1], destino[0] + tw, destino[1] + th], "giro": giro, "escala": escala}
+    json.dump(verdad, open(d / "clonado.json", "w"), indent=1)
+
+
+def superres(d):
+    """Superresolucion de verdad conocida: un rotulo a x3 (la verdad) desplazada 0, 1 o 2 px de alta resolucion en cada eje
+    (9 combinaciones + 3 al azar) y reducida x3 por promedio de area (lo que hace el sensor) con ruido sigma 2: 12 fotogramas
+    desplazados entre si tercios de pixel. Las esquinas del rotulo en cada fotograma se conocen exactamente."""
+    d.mkdir(parents=True, exist_ok=True)
+    F, M = 3, 60
+    verdad = rotulo(288, 139).resize((288 * F, 139 * F), Image.LANCZOS)
+    verdad.save(d / "verdad.png")
+    W, H = verdad.width + 2 * M, verdad.height + 2 * M
+    lienzo = Image.new("RGB", (W + F, H + F), (110, 110, 110)); lienzo.paste(verdad, (M, M))
+    a = np.asarray(lienzo, np.float32)
+    r = np.random.default_rng(5)
+    desp = [(x, y) for y in range(F) for x in range(F)] + [tuple(int(v) for v in r.integers(0, F, 2)) for _ in range(3)]
+    meta = {"factor": F, "verdad": "verdad.png", "verdad_wh": [verdad.width, verdad.height], "fotogramas": []}
+    for i, (sx, sy) in enumerate(desp):
+        c = a[sy:sy + H, sx:sx + W].reshape(H // F, F, W // F, F, 3).mean(axis=(1, 3))
+        c = (c + r.normal(0, 2, c.shape)).clip(0, 255).astype(np.uint8)
+        nombre = f"sr_{i:02d}.png"; Image.fromarray(c).save(d / nombre)
+        x0, y0, x1, y1 = (M - sx) / F, (M - sy) / F, (M + verdad.width - sx) / F, (M + verdad.height - sy) / F
+        meta["fotogramas"].append({"nombre": nombre, "desplazamiento_alta": [sx, sy], "esquinas_SI_SD_ID_II": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]})
+    json.dump(meta, open(d / "superres.json", "w"), indent=1)
+
+
 def estructura(d, base):
     d.mkdir(parents=True, exist_ok=True)
     F = ["ffmpeg", "-nostdin", "-v", "error", "-y"]
@@ -197,8 +259,10 @@ def main(base):
     base = Path(base)
     muestras(base / "muestras")
     integridad(base / "integridad", base / "muestras" / "muestra_b.png")
+    clonado(base / "integridad")
+    superres(base / "superres")
     estructura(base / "estructura", base / "muestras" / "muestra_b.png")
-    for sub in ("muestras", "integridad", "estructura"):
+    for sub in ("muestras", "integridad", "estructura", "superres"):
         n = sorted(p.name for p in (base / sub).iterdir())
         print(f"{sub}: {len(n)} ficheros")
     return 0

@@ -83,6 +83,8 @@ jobs:
         run: python tests/web/qa_edicion.py "$RUNNER_TEMP/insumos/muestras"
       - name: Integridad de la imagen
         run: python tests/web/qa_integridad.py "$RUNNER_TEMP/insumos/integridad"
+      - name: Superresolucion con varios fotogramas
+        run: python tests/web/qa_superres.py "$RUNNER_TEMP/insumos/superres"
       - name: Informe, sesion y ayuda
         run: python tests/web/qa_informe.py "$RUNNER_TEMP/insumos/muestras"
       - name: Metadatos

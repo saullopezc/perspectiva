@@ -505,9 +505,14 @@
             <label>busqueda ± px <input type="range" id="rBusqueda" min="2" max="60" value="12"><span class="v" id="vBusqueda"></span></label>
             <label>NCC minima <input type="range" id="nccMin" min="0" max="1" step="0.05" value="0.6"><span class="v" id="vNcc"></span></label>
             <label>alineado fino <select id="alinPila"><option value="entero">entero ±6 px (SSD)</option><option value="subpixel">subpixel ±6 px (SSD + parabola)</option><option value="no">ninguno (solo los puntos)</option></select></label>
-            <label>mezcla <select id="modoPila"><option value="media">media</option><option value="mediana">mediana</option><option value="recortada">media recortada (sin min/max)</option></select></label>
+            <label>mezcla <select id="modoPila"><option value="media">media</option><option value="mediana">mediana</option><option value="recortada">media recortada (sin min/max)</option><option value="superres">superresolucion (pixeles originales)</option></select></label>
             <label title="Lucky imaging: usar solo el % mas nitido (varianza del laplaciano)">nitidos % <input type="range" id="mejoresPila" min="10" max="100" step="5" value="100"><span class="v" id="vMejores"></span></label>
           </div>
+          <div class="grid2" id="opcSR" hidden>
+            <label title="Ancho del nucleo con que pesa cada pixel original (en pixeles originales): menos = mas nitido y mas ruido">nucleo SR <input type="range" id="srSigma" min="0.25" max="0.8" step="0.05" value="0.3"><span class="v" id="vSrSigma"></span></label>
+            <label title="Iteraciones de Richardson-Lucy con la PSF del pixel del sensor: deshace el promedio del sensor; muchas suben el ruido">deconvolucion <input type="range" id="srIter" min="0" max="30" step="1" value="8"><span class="v" id="vSrIter"></span></label>
+          </div>
+          <p class="ayuda" id="infoSR"></p>
           <p class="ayuda" id="infoSeguir"></p>
           <div class="fila"><button id="btnApilar">Anadir actual</button><button id="btnApilarTodos">Anadir todos</button>
             <label><input type="checkbox" id="verPila"> ver apilado</label><button id="btnVaciar">Vaciar</button></div>
@@ -529,8 +534,8 @@
           <div class="fila"><button id="btnELA">Calcular ELA</button><button id="btnElaAbrir" title="Anade el mapa ELA como imagen para ampliarlo y rectificarlo">abrir ELA como imagen</button></div>
           <p class="ayuda" id="elaInfo"></p>
           <canvas id="elaCanvas" hidden style="width:100%"></canvas>
-          <p class="ayuda" style="margin-top:12px"><b>Mapas de calor</b> sobre la imagen. Ruido: rojo = mas ruido que el resto, azul = menos (zona pegada de otra foto, suavizada o retocada). JPEG ghost: oscuro en la calidad elegida = zona que ya estuvo comprimida a esa calidad.</p>
-          <div class="fila"><button id="btnMapaRuido">Mapa de ruido</button><button id="btnGhost">JPEG ghost</button>
+          <p class="ayuda" style="margin-top:12px"><b>Mapas de calor</b> sobre la imagen. Ruido: rojo = mas ruido que el resto, azul = menos (zona pegada de otra foto, suavizada o retocada). JPEG ghost: oscuro en la calidad elegida = zona que ya estuvo comprimida a esa calidad. Clonado: azul = zona de origen, rojo = su copia en la misma imagen (tambien girada o reescalada).</p>
+          <div class="fila"><button id="btnMapaRuido">Mapa de ruido</button><button id="btnGhost">JPEG ghost</button><button id="btnClonado" title="Busca zonas copiadas de otra parte de la misma imagen (copy-move), tambien giradas o reescaladas">Clonado</button>
             <button class="chico" id="btnMapaAbrir" title="Anade el mapa como imagen para ampliarlo">abrir mapa como imagen</button></div>
           <div class="grid2">
             <label>calidad ghost <input type="range" id="ghostQ" min="50" max="95" step="5" value="60"><span class="v" id="vGhostQ"></span></label>
@@ -588,6 +593,7 @@
 <script src="js/comparar.js"></script>
 <script src="js/integridad.js"></script>
 <script src="js/mapas.js"></script>
+<script src="js/clonado.js"></script>
 <script src="js/integridad_ui.js"></script>
 <script src="js/informe.js"></script>
 <script src="js/estructura.js"></script>
@@ -595,6 +601,7 @@
 <script src="js/sesion.js"></script>
 <script src="js/vistas.js"></script>
 <script src="js/ayuda_contenido.js"></script>
+<script src="js/superres.js"></script>
 <script src="js/apilado.js"></script>
 <script src="js/interfaz.js"></script>
 <script src="js/version.js"></script>

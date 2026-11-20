@@ -427,17 +427,26 @@ function parametros() {
   P.rot90 = rot90; P.modoGeometria = modo(); P.ordenFiltros = RP.ORDEN;
   return P;
 }
-function warp(F, E, P, w, h, nucleo) {
+// correspondencia salida -> imagen: (x, y) en pixeles de la salida (centro del pixel u en u + 0.5) a la posicion en la
+// fuente, con margen, trapecio, giro y espejos. La usan warp y la superresolucion (superres.js)
+function mapaSalida(E, P, w, h) {
   const m = P.margenPct / 100;
   const H = RP.homografia(RP.rectTrapecio(w * m, h * m, w * (1 - m), h * (1 - m), P.trapH, P.trapV), E);
   const ang = ((P.giroFino + P.rot90) * Math.PI) / 180, co = Math.cos(ang), si = Math.sin(ang);
   const vertical = ((P.rot90 % 180) + 180) % 180 === 90, W2 = vertical ? h : w, H2 = vertical ? w : h;
-  const muestra = RP.muestreador(F.datos.data, F.w, F.h, 4, nucleo), rgb = new Float32Array(W2 * H2 * 3), t = [0, 0, 0];
-  for (let v = 0; v < H2; v++) for (let u = 0; u < W2; u++) {
-    let du = u + 0.5 - W2 / 2, dv = v + 0.5 - H2 / 2;
+  const f = (x, y) => {
+    let du = x - W2 / 2, dv = y - H2 / 2;
     if (P.espejo) du = -du;
     if (P.espejoV) dv = -dv;
-    const [sx, sy] = RP.aplicarH(H, co * du + si * dv + w / 2, -si * du + co * dv + h / 2);
+    return RP.aplicarH(H, co * du + si * dv + w / 2, -si * du + co * dv + h / 2);
+  };
+  return { f, W2, H2 };
+}
+function warp(F, E, P, w, h, nucleo) {
+  const { f, W2, H2 } = mapaSalida(E, P, w, h);
+  const muestra = RP.muestreador(F.datos.data, F.w, F.h, 4, nucleo), rgb = new Float32Array(W2 * H2 * 3), t = [0, 0, 0];
+  for (let v = 0; v < H2; v++) for (let u = 0; u < W2; u++) {
+    const [sx, sy] = f(u + 0.5, v + 0.5);
     muestra(sx, sy, t);
     const k = (v * W2 + u) * 3; rgb[k] = t[0]; rgb[k + 1] = t[1]; rgb[k + 2] = t[2];
   }

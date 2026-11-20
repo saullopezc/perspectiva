@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------------
 // integridad_ui.js — Bloque "Integridad de la imagen": tablas de cuantizacion y
-// calidad estimada, miniatura EXIF frente a la imagen principal, y ELA (con la
-// opcion de abrir el mapa como imagen para ampliarlo). Usa el estado de app.js.
+// calidad estimada, miniatura EXIF frente a la imagen principal, ELA, mapas de ruido,
+// JPEG ghost y clonado (con la opcion de abrir el mapa como imagen). Usa el estado de app.js.
 // Author: Saul López
 // Date:   2026-11-15
 // Modified By:   Saul López
@@ -102,9 +102,33 @@ const B_MAPA = 16;
 function pintarMapa() {
   const F = F0(); if (!F || !ultimoMapa) return;
   const op = +$("mapaOpacidad").value / 100, m = ultimoMapa;
-  const rgba = RP.componerMapa(F.datos.data, F.w, F.h, m.vals, m.gw, m.B, m.tipo === "ruido" ? RP.colorRuido : RP.colorGhost, op);
-  const cv = $("mapaCanvas"); cv.width = F.w; cv.height = F.h; cv.getContext("2d").putImageData(new ImageData(rgba, F.w, F.h), 0, 0); cv.hidden = false;
+  const rgba = m.tipo === "clonado" ? RP.componerClonado(F.datos.data, F.w, F.h, m.res, op)
+    : RP.componerMapa(F.datos.data, F.w, F.h, m.vals, m.gw, m.B, m.tipo === "ruido" ? RP.colorRuido : RP.colorGhost, op);
+  const cv = $("mapaCanvas"), x = cv.getContext("2d"); cv.width = F.w; cv.height = F.h; x.putImageData(new ImageData(rgba, F.w, F.h), 0, 0); cv.hidden = false;
+  if (m.tipo === "clonado") { // flecha de cada origen a su copia
+    x.lineWidth = Math.max(2, F.w / 400); x.strokeStyle = "#ffd400"; x.fillStyle = "#ffd400";
+    m.res.modelos.forEach((mo, i) => {
+      const [a, b] = [mo.cajaOrigen, mo.cajaDestino].map((c) => [(c[0] + c[2]) / 2, (c[1] + c[3]) / 2]);
+      x.beginPath(); x.moveTo(...a); x.lineTo(...b); x.stroke();
+      x.font = `${Math.max(14, F.w / 50)}px sans-serif`; x.fillText(String(i + 1), b[0] + 6, b[1] - 6);
+    });
+  }
 }
+$("btnClonado").onclick = () => {
+  const F = F0(); if (!F) return;
+  $("mapaInfo").textContent = "Clonado: buscando zonas repetidas…";
+  setTimeout(() => { // deja pintar el aviso antes del calculo (~1 s)
+    const t0 = performance.now(), res = RP.detectarClonado(RP.lumRGBA(F.datos.data, F.w * F.h), F.w, F.h);
+    ultimoMapa = { tipo: "clonado", res };
+    F.mapa = { tipo: "clonado", modelos: res.modelos, bloquesConTextura: res.bloques, paresCoherentes: res.coherentes };
+    const lista = res.modelos.map((m, i) => `${i + 1}) ${m.pares} bloques, desplazamiento ${m.desplazamiento.join(", ")} px, giro ${m.giroGrados} grados, escala ${m.escala}, ` +
+      `detalle coincidente NCC ${m.ncc}; origen ${m.cajaOrigen.join(",")} -> copia ${m.cajaDestino.join(",")}`).join(" · ");
+    $("mapaInfo").textContent = (res.modelos.length ? `Clonado: ${res.modelos.length} zona(s) copiada(s) dentro de la imagen. ${lista}.`
+      : "Clonado: no se encontraron zonas copiadas dentro de la imagen (las zonas lisas y los bordes rectos no se pueden comprobar).") +
+      ` Indicio, no prueba: los patrones que se repiten de verdad (ladrillos, rejas, letras iguales) tambien coinciden. (${Math.round(performance.now() - t0)} ms)`;
+    pintarMapa();
+  }, 30);
+};
 $("btnMapaRuido").onclick = () => {
   const F = F0(); if (!F) return;
   const r = RP.mapaRuido(RP.lumRGBA(F.datos.data, F.w * F.h), F.w, F.h, B_MAPA);
@@ -139,7 +163,7 @@ $("vGhostQ").textContent = $("ghostQ").value; $("vMapaOpacidad").textContent = $
 $("btnMapaAbrir").onclick = async () => {
   const F = F0(); if (!ultimoMapa || !F) { alert("Calcula primero un mapa"); return; }
   const src = $("mapaCanvas"), c = document.createElement("canvas"); c.width = src.width; c.height = src.height; c.getContext("2d").drawImage(src, 0, 0);
-  const datos = c.getContext("2d").getImageData(0, 0, c.width, c.height), nom = ultimoMapa.tipo === "ruido" ? "mapa de ruido" : `JPEG ghost q${ultimoMapa.q}`;
+  const datos = c.getContext("2d").getImageData(0, 0, c.width, c.height), nom = { ruido: "mapa de ruido", clonado: "mapa de clonado" }[ultimoMapa.tipo] || `JPEG ghost q${ultimoMapa.q}`;
   agregarFuente({ tipo: "derivada", nombre: `${nom} · ${F.nombre}`, sha256: await RP.sha256(datos.data.buffer.slice(0)), origen: null,
     derivado: { analisis: nom, sha256Fuente: F.sha256 }, w: c.width, h: c.height, img: c, datos, archivo: F.archivo });
 };

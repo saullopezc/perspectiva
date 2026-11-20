@@ -128,6 +128,26 @@ def main(insumos):
             caso("mapas", "JPEG ghost a q60: la zona comprimida antes a q60 sale oscura (dentro < 0.5x fuera)", g1["dentro"] < 0.5 * g1["fuera"], f"dentro {g1['dentro']:.3f} · fuera {g1['fuera']:.3f}")
             mapa("ghost_control.jpg", "#btnGhost", 60); g0 = pg.evaluate(dentro_fuera, zg)
             caso("mapas", "control ghost: sin montaje la misma zona no se oscurece a q60 (dentro > 0.7x fuera)", g0["dentro"] > 0.7 * g0["fuera"], f"dentro {g0['dentro']:.3f} · fuera {g0['fuera']:.3f}")
+        if (insumos / "clonado.json").is_file():
+            # clonado (copy-move) con verdad conocida: traslacion, giro 10 grados (PIL gira a izquierdas: aqui sale -10) y escala 1.1
+            verdad = json.loads((insumos / "clonado.json").read_text())
+            def iou(a, b):
+                ix = max(0, min(a[2], b[2]) - max(a[0], b[0])); iy = max(0, min(a[3], b[3]) - max(a[1], b[1])); i = ix * iy
+                return i / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - i)
+            for nombre, v in verdad.items():
+                mapa(f"clonado_{nombre}.jpg", "#btnClonado"); r = pg.evaluate("() => ultimoMapa.res.modelos")
+                m = r[0] if r else None
+                ok = (len(r) == 1 and iou(m["cajaDestino"], v["destino_x0y0x1y1"]) > 0.5 and iou(m["cajaOrigen"], v["origen_x0y0x1y1"]) > 0.5
+                      and abs(m["giroGrados"] + v["giro"]) < 3 and abs(m["escala"] - v["escala"]) < 0.05)
+                caso("clonado", f"{nombre}: una zona, origen y copia donde estan (IoU > 0.5), giro {-v['giro']} y escala {v['escala']}", ok,
+                     m and f"IoU origen {iou(m['cajaOrigen'], v['origen_x0y0x1y1']):.2f} copia {iou(m['cajaDestino'], v['destino_x0y0x1y1']):.2f}, giro {m['giroGrados']}, escala {m['escala']}, NCC {m['ncc']}, modelos {len(r)}")
+                if nombre == "giro10":
+                    pg.locator("#mapaCanvas").screenshot(path=str(SALIDA / "06_clonado_giro10.png"))
+            mapa("clonado_control.jpg", "#btnClonado"); r0 = pg.evaluate("() => ({ n: ultimoMapa.res.modelos.length, info: document.getElementById('mapaInfo').textContent })")
+            caso("clonado", "control: la misma textura sin copiar no da ninguna zona (y lo dice)", r0["n"] == 0 and "no se encontraron" in r0["info"], r0["info"][:120])
+            for extra in ("calidad_q90.jpg", "ghost_control.jpg"):  # fondo periodico y bordes rectos del rotulo: repiten forma, no detalle
+                mapa(extra, "#btnClonado"); n = pg.evaluate("() => ultimoMapa.res.modelos.length")
+                caso("clonado", f"sin falsos positivos en {extra} (fondo que se repite y bordes rectos)", n == 0, f"{n} modelos")
         caso("errores", "sin errores de JS", not errores, errores[:5])
         nav.close()
     fallos = [x for x in res if not x["ok"]]

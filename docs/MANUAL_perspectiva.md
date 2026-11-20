@@ -79,7 +79,8 @@ comparar, y el botón lo dice.
 - **Añadir:** botón **＋** junto al carrusel (imágenes, vídeos y documentos).
 - **Quitar:** ✕ de la hoja, o `Supr` sobre la imagen actual. Un vídeo o un documento que no es imagen se quita con
   **quitar** en *Metadatos* (los fotogramas ya capturados de un vídeo se quedan). Quitar solo lo saca de la sesión: el
-  fichero en disco no se toca. La retirada (nombre, SHA-256, hora) queda en el registro JSON y en el informe.
+  fichero en disco no se toca. La retirada (nombre, SHA-256, hora) queda en el registro JSON; el informe no menciona
+  lo quitado, porque no se analiza.
 - **Ajustes por imagen** (bloque *Configuración entre imágenes*): por defecto cada imagen tiene **sus propios ajustes**
   y un cambio solo afecta a la imagen actual. También se puede elegir que la nueva parta de la anterior, o que los
   mismos ajustes se apliquen a todas. *copiar geometría del anterior* reutiliza los puntos marcados.
@@ -174,6 +175,18 @@ imágenes nítidas y grandes la comparación trabaja por bloques para no bloquea
 - **Seguir y apilar**, **Añadir actual**, **Añadir todos**, **Vaciar**, *ver apilado*.
 - Mezcla media, mediana o media recortada; alineado fino entero, subpíxel o ninguno; **nítidos %** para usar solo los
   fotogramas más nítidos.
+- **Superresolución** (mezcla *superresolución*): en vez de promediar los fotogramas ya rectificados, reconstruye cada
+  píxel de la salida con los **píxeles originales** de todos los fotogramas de la pila, proyectados con los puntos
+  seguidos de cada uno; después deshace el promedio que hace el sensor (*deconvolución*, Richardson-Lucy). Uso: capturar
+  un rango de fotogramas (bloque *Vídeo*) con la geometría marcada en el de partida; se siguen y se apilan solos; elegir
+  la mezcla *superresolución* y subir el **alto de salida** (sin más píxeles de salida que de origen no hay detalle que
+  ganar; la página lo avisa). *núcleo SR*: 0,3 con muchos fotogramas; con menos de 9, 0,5-0,6 (si no, quedan bloques).
+  Medido con una secuencia de verdad conocida (12 fotogramas desplazados tercios de píxel, ×3): error 0,0031 la media,
+  0,0009 la media con la misma deconvolución y 0,0008 la superresolución. **La mayor parte de la ganancia viene de la
+  deconvolución.** Necesita fotogramas que muestreen la escena de forma independiente: en un vídeo muy comprimido los
+  fotogramas consecutivos se predicen unos de otros y apenas aportan detalle nuevo.
+- Si el objeto se mueve rápido, subir *búsqueda* en el seguimiento por encima de lo que se desplaza entre fotogramas
+  (por defecto 12 px). La pila de un rango se rectifica con los ajustes del fotograma de partida.
 
 ### 5.9 Integridad de la imagen (indicios)
 
@@ -194,6 +207,14 @@ imágenes nítidas y grandes la comparación trabaja por bloques para no bloquea
   - **JPEG ghost:** recomprime a 10 calidades (50 a 95) y muestra, para la elegida, dónde la diferencia es mínima
     (oscuro). Una zona que ya estuvo comprimida a otra calidad se oscurece en esa calidad mientras el resto no. Medido:
     una zona comprimida antes a 60 da 0,15 frente a 0,87 del resto en el mapa de 60.
+  - **Clonado** (copy-move): busca zonas copiadas de otra parte de la **misma** imagen, también giradas o reescaladas
+    levemente. Azul: origen; rojo: la copia; la flecha une cada origen con su copia, y el texto da desplazamiento, giro,
+    escala y el parecido del detalle fino (NCC). Cómo decide: describe cada bloque de forma que no cambie al girarlo,
+    exige que los pares vengan en grupos que se desplazan igual y comprueba al final que el detalle fino (ruido, bordes)
+    coincide. Las zonas lisas y los bordes rectos no se pueden comprobar y se ignoran. Medido (JPEG 90): una copia
+    desplazada, girada 10° o reescalada ×1,1 se detecta con su giro y escala; una textura sin copia, un fondo que se
+    repite y los bordes rectos de un rótulo no dan ninguna zona. Los patrones que se repiten de verdad (ladrillos, rejas,
+    letras iguales grandes) también pueden coincidir.
 - Bordes y texto siempre salen algo claros en el ELA. Todo lo de este bloque son indicios.
 
 ### 5.10 Metadatos, hashes y análisis de archivo

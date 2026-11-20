@@ -10,7 +10,7 @@
 const fs = require("fs"), path = require("path"), vm = require("vm");
 global.window = global;
 global.ImageData = class { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };
-for (const f of ["nucleo", "interpolacion", "filtros", "hexa", "geometria", "exportar", "referencias", "hipotesis", "sintesis", "hashes", "integridad", "mapas"]) vm.runInThisContext(fs.readFileSync(path.join(__dirname, "../../tools/web/js", f + ".js"), "utf8"));
+for (const f of ["nucleo", "interpolacion", "filtros", "hexa", "geometria", "exportar", "referencias", "hipotesis", "sintesis", "hashes", "integridad", "mapas", "clonado"]) vm.runInThisContext(fs.readFileSync(path.join(__dirname, "../../tools/web/js", f + ".js"), "utf8"));
 let fallos = 0;
 const ok = (c, m) => { console.log((c ? "OK    " : "FALLO ") + m); if (!c) fallos++; };
 
@@ -25,11 +25,19 @@ const sintaxis = fs.readdirSync(dirJs).filter((x) => x.endsWith(".js")).flatMap(
 });
 ok(!sintaxis.length, `todos los modulos de tools/web/js compilan (incluidos los de interfaz, que aqui no se ejecutan)${sintaxis.length ? ": " + sintaxis.join("; ") : ""}`);
 const repetidos = Object.entries(declarados).filter(([, fs2]) => fs2.length > 1);
+// lo mismo con las funciones colgadas de RP (RP.x = ...): no rompen la carga, la ultima pisa en silencio a la anterior
+// (paso con RP.richardsonLucy: superres.js piso la de filtros.js y la deconvolucion de movimiento dejo de hacer nada)
+const rpDef = {};
+for (const f of fs.readdirSync(dirJs).filter((x) => x.endsWith(".js")))
+  for (const m of fs.readFileSync(path.join(dirJs, f), "utf8").matchAll(/^RP\.([A-Za-z_$][\w$]*)\s*=(?!=)/gm))
+    (rpDef[m[1]] = rpDef[m[1]] || []).push(f);
+const rpRepetidos = Object.entries(rpDef).filter(([, fs2]) => fs2.length > 1);
 // la ayuda integrada se genera del manual: si el manual cambia y no se regenera, la ayuda queda desfasada
 const manualMd = fs.readFileSync(path.join(__dirname, "../../docs/MANUAL_perspectiva.md"));
 const shaManual = require("crypto").createHash("sha256").update(manualMd).digest("hex");
 const ayudaJs = fs.readFileSync(path.join(dirJs, "ayuda_contenido.js"), "utf8"), shaAyuda = (ayudaJs.match(/"sha256Manual": "([0-9a-f]{64})"/) || [])[1];
 ok(shaAyuda === shaManual, `ayuda integrada al dia con docs/MANUAL_perspectiva.md${shaAyuda === shaManual ? "" : " — regenerar: python3 -I tools/generar_ayuda_web.py"}`);
+ok(!rpRepetidos.length, `sin funciones RP.* definidas en dos sitios (una pisaria a la otra)${rpRepetidos.length ? ": " + rpRepetidos.map(([n, fs2]) => `${n} (${fs2.join(", ")})`).join("; ") : ""}`);
 ok(!repetidos.length, `sin nombres de nivel superior repetidos entre modulos de tools/web/js${repetidos.length ? ": " + repetidos.map(([n, fs2]) => `${n} (${fs2.join(", ")})`).join("; ") : ""}`);
 
 // homografia: esquinas exactas + control positivo
@@ -263,6 +271,25 @@ ok(el.mapa[0] === 30 && el.mapa[1] === 0 && el.media === 1.5, "ELA: maximo por c
   ok(Math.abs(ci - 1) < 0.15 && Math.abs(cf - 1) < 0.15, `mapa de ruido, control sin zona: ${ci.toFixed(2)} dentro, ${cf.toFixed(2)} fuera`);
   const g = RP.ghostNormalizado([{ q: 60, d: Float32Array.from([1, 9]) }, { q: 75, d: Float32Array.from([4, 4]) }, { q: 90, d: Float32Array.from([7, 1]) }]);
   ok(g[0].n[0] === 0 && g[0].n[1] === 1 && g[2].n[0] === 1 && g[2].n[1] === 0, "JPEG ghost: cada bloque normalizado entre su minimo (0) y su maximo (1)"); }
+
+// clonado: textura sin repeticiones (ruido por octavas + ruido de pixel); un trozo de 120x100 copiado 300 px a la derecha y
+// 150 abajo se detecta con ese desplazamiento; control: la misma textura sin copiar -> ningun modelo
+{ const w = 640, h = 480, sem = { v: 7 }, rnd = () => ((sem.v = (sem.v * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const L = new Float32Array(w * h);
+  for (const [paso, amp] of [[64, 60], [24, 40], [9, 25], [4, 12]]) {
+    const gw = Math.ceil(w / paso) + 2, gh = Math.ceil(h / paso) + 2, g = Float32Array.from({ length: gw * gh }, rnd);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const fx = x / paso, fy = y / paso, x0 = Math.floor(fx), y0 = Math.floor(fy), ax = fx - x0, ay = fy - y0, k = y0 * gw + x0;
+      L[y * w + x] += amp * ((1 - ay) * ((1 - ax) * g[k] + ax * g[k + 1]) + ay * ((1 - ax) * g[k + gw] + ax * g[k + gw + 1]) - 0.5);
+    }
+  }
+  for (let i = 0; i < L.length; i++) L[i] += 128 + 6 * (rnd() - 0.5);
+  const C = Float32Array.from(L);
+  for (let y = 60; y < 160; y++) for (let x = 80; x < 200; x++) C[(y + 150) * w + x + 300] = L[y * w + x];
+  const rc = RP.detectarClonado(C, w, h), r0 = RP.detectarClonado(L, w, h), m = rc.modelos[0];
+  ok(rc.modelos.length === 1 && Math.abs(m.desplazamiento[0] - 300) <= 2 && Math.abs(m.desplazamiento[1] - 150) <= 2 && Math.abs(m.giroGrados) < 1 && m.ncc > 0.8,
+    `clonado: trozo copiado -> 1 modelo, desplazamiento ${m ? m.desplazamiento : "-"} (300,150), giro ${m ? m.giroGrados : "-"}, NCC ${m ? m.ncc : "-"}`);
+  ok(r0.modelos.length === 0, `clonado, control sin copia: ${r0.modelos.length} modelos (${r0.bloques} bloques con textura)`); }
 
 console.log(fallos ? `\n${fallos} FALLOS` : "\nTODO OK");
 process.exit(fallos ? 1 : 0);

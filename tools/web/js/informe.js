@@ -49,6 +49,7 @@ function parametrosCambiados() {
 
 async function generarInforme() {
   const F = F0(), r = registro(), ahora = new Date(), S = [];
+  delete r.retiradas;
   S.push(`<p class="aviso">Informe de ANALISIS (documento de trabajo): resume lo hecho con la herramienta para revisarlo o repetirlo. Los resultados son mediciones e indicios, con sus limites indicados.</p>`);
   S.push(tablaHtml(["campo", "valor"], [
     ["generado", `${escHtml(ahora.toISOString())} (UTC) · ${escHtml(ahora.toString())}`], ["herramienta", "Perspectiva (perspectiva.html)"],
@@ -98,8 +99,7 @@ async function generarInforme() {
         + (F.mapa && !$("mapaCanvas").hidden ? `<p>${escHtml($("mapaInfo").textContent)}</p>` + imgHtml($("mapaCanvas"), F.mapa.tipo === "ruido" ? "mapa de ruido" : `JPEG ghost a calidad ${F.mapa.calidad}`) : ""));
     }
   }
-  if (r.retiradas.length) S.push("<h2>Quitados de la sesion</h2><p>Se sacaron de la sesion (el fichero en disco no se toca).</p>"
-    + tablaHtml(["nombre", "clase", "SHA-256", "fecha"], r.retiradas.map((x) => [escHtml(x.nombre), escHtml(x.clase), `<code>${escHtml(x.sha256)}</code>`, escHtml(x.fecha)])));
+  // lo quitado de la sesion no se analiza: no se menciona en el informe (queda solo en el registro JSON descargable)
   // lo que se veia y como estaba el navegador (para repetir la observacion en las mismas condiciones)
   const v = r.vista;
   if (v) S.push("<h2>Vista y navegador</h2><p>Lo que se veia al generar el informe y la configuracion con que se veia.</p>"

@@ -3,7 +3,8 @@
 // los puntos marcados en un fotograma (esquinas, aristas o N puntos) se buscan en los demas por
 // correlacion (NCC subpixel), cada uno se rectifica con sus propios puntos y la pila
 // se mezcla (media, mediana o recortada), opcionalmente solo con los mas nitidos.
-// Usa el estado global de app.js (fuentes, pila, F0, editables, esquinas...).
+// La mezcla «superresolucion» vuelve a los pixeles originales de cada fotograma (superres.js).
+// Usa el estado global de app.js (fuentes, pila, F0, editables, esquinas, mapaSalida...).
 // Author: Saul López
 // Date:   2026-11-13
 // Modified By:   Saul López
@@ -51,6 +52,7 @@ function informarSeguimiento(r) {
 }
 
 // ------------------------------------------------------------ pila
+let idPila = 0, cacheSR = null, ultimoSR = null; // ultimoSR: datos de la ultima superresolucion (registro y pruebas)
 function anadirPila(F, plana) {
   let { w, h, rgb } = plana, dy = 0, dx = 0;
   if (pila.length && (pila[0].w !== w || pila[0].h !== h)) { alert("Tamano distinto al de la pila (usa los mismos parametros de salida)"); return; }
@@ -59,7 +61,7 @@ function anadirPila(F, plana) {
     [dy, dx] = RP.alinearSub(RP.luminancia(pila[0].rgb, w * h), lum, w, h, 6, modoAl === "subpixel");
     rgb = modoAl === "subpixel" ? RP.desplazarSub(rgb, w, h, dy, dx) : RP.desplazar(rgb, w, h, dy, dx);
   }
-  pila.push({ w, h, rgb, dy, dx, nitidez: RP.nitidez(lum, w, h), fuente: F.nombre, sha256: F.sha256, origen: F.origen,
+  pila.push({ id: ++idPila, w, h, rgb, dy, dx, nitidez: RP.nitidez(lum, w, h), fuente: F.nombre, sha256: F.sha256, origen: F.origen,
     esquinas: esquinas(F).map((p) => [...p]), seguimiento: F.seguimiento || null });
   infoPila();
 }
@@ -73,7 +75,31 @@ function usados(base) {
 function apilado(base) {
   const u = usados(base);
   if (!u.length) return base;
-  return { w: base.w, h: base.h, rgb: RP.mezclarPila(u.map((p) => p.rgb), base.w * base.h * 3, $("modoPila").value) };
+  if ($("modoPila").value === "superres") { const sr = apiladoSR(base, u); if (sr) return sr; }
+  return { w: base.w, h: base.h, rgb: RP.mezclarPila(u.map((p) => p.rgb), base.w * base.h * 3, $("modoPila").value === "superres" ? "media" : $("modoPila").value) };
+}
+// superresolucion (superres.js): vuelve a los pixeles originales de cada fotograma de la pila con sus propios puntos.
+// Se guarda en cache: solo se recalcula si cambian la pila, la geometria de salida o sus ajustes
+function apiladoSR(base, u) {
+  const P = parametros(), o = { sigma: +$("srSigma").value, iter: +$("srIter").value };
+  const geo = ["margenPct", "trapH", "trapV", "giroFino", "rot90", "espejo", "espejoV", "altoPx", "anchoCm", "altoCm"].map((k) => P[k]);
+  const clave = JSON.stringify([u.map((p) => p.id), geo, o, base.w, base.h]);
+  if (cacheSR && cacheSR.clave === clave) return cacheSR.res;
+  const marcos = [];
+  for (const p of u) {
+    const F = fuentes.find((f) => f.sha256 === p.sha256 && f.nombre === p.fuente); if (!F || p.esquinas.length !== 4) continue;
+    const [w, h] = dimsSalida(F, P, p.esquinas), m = mapaSalida(p.esquinas, P, w, h);
+    if (m.W2 !== base.w || m.H2 !== base.h) continue;
+    marcos.push({ datos: F.datos.data, w: F.w, h: F.h, mapa: m.f, dx: p.dx, dy: p.dy });
+  }
+  if (!marcos.length) { $("infoSR").textContent = "superresolucion: los fotogramas de la pila ya no estan cargados; se usa la media"; return null; }
+  const t0 = performance.now(), r = RP.superresolver(marcos, base.w, base.h, o), ms = Math.round(performance.now() - t0);
+  ultimoSR = { fotogramas: marcos.length, sigma: o.sigma, iteracionesRL: o.iter, salidaPorPixelOriginal: +r.porOriginal.toFixed(2), sigmaPsf: +r.sigmaPsf.toFixed(2), ms };
+  $("infoSR").textContent = `superresolucion: ${marcos.length} fotogramas · ${r.porOriginal.toFixed(2)} px de salida por pixel original · PSF ${r.sigmaPsf.toFixed(2)} px · ${ms} ms` +
+    (r.porOriginal < 1.5 ? " · sube el alto de salida: con menos de 1.5 px por pixel original no hay detalle que ganar" : "") +
+    (marcos.length < 9 && o.sigma < 0.5 ? ` · con ${marcos.length} fotogramas quedan huecos (bloques): sube el nucleo a 0.5-0.6` : "");
+  cacheSR = { clave, res: { w: r.w, h: r.h, rgb: r.rgb } };
+  return cacheSR.res;
 }
 function infoPila() {
   const pct = +$("mejoresPila").value, k = pila.length && ultimaPlana ? usados(ultimaPlana).length : pila.length;
@@ -83,6 +109,7 @@ function infoPila() {
 function infoApilado() {
   const u = ultimaPlana ? usados(ultimaPlana) : pila;
   return { modo: $("modoPila").value, alineado: $("alinPila").value, mejoresPct: +$("mejoresPila").value,
+    superresolucion: $("modoPila").value === "superres" ? ultimoSR : null,
     fotogramas: pila.map(({ fuente, sha256, origen, esquinas: e, dy, dx, nitidez, seguimiento }, i) =>
       ({ fuente, sha256, origen, esquinas: e, desplazamiento: [dy, dx], nitidez: +nitidez.toFixed(2), seguimiento, usado: u.includes(pila[i]) })) };
 }
@@ -96,6 +123,8 @@ $("btnApilar").onclick = () => { if (ultimaPlana) { anadirPila(F0(), ultimaPlana
 $("btnApilarTodos").onclick = () => { apilarLista(fuentes, false); procesar(); };
 $("btnVaciar").onclick = () => { pila.length = 0; infoPila(); procesar(); };
 $("mejoresPila").addEventListener("input", infoPila);
+const verOpcSR = () => { $("opcSR").hidden = $("modoPila").value !== "superres"; $("vSrSigma").textContent = $("srSigma").value; $("vSrIter").textContent = $("srIter").value; };
+["modoPila", "srSigma", "srIter"].forEach((id) => $(id).addEventListener("input", verOpcSR)); verOpcSR();
 $("btnSeguir").onclick = () => {
   const ref = F0(); if (!ref) return;
   informarSeguimiento(seguirReferencias(ref, fuentes)); dibujarFuente(); procesar();
@@ -122,6 +151,9 @@ function trasRango(ref, nuevos) {
   if (!ref || esquinas(ref).length !== 4) { $("infoSeguir").textContent = "seguir puntos: marca antes la geometria en el fotograma de partida (4 esquinas, 4 aristas o 4+ puntos)"; return; }
   const r = seguirReferencias(ref, nuevos); informarSeguimiento(r);
   if ($("autoApilar").checked) {
+    // se vuelve a la referencia ANTES de apilar: la pila se rectifica con sus ajustes (interpolacion, salida), no con los
+    // del ultimo fotograma capturado, que empieza con los de por defecto
+    if (fuentes.includes(ref)) seleccionar(fuentes.indexOf(ref));
     pila.length = 0; apilarLista([ref, ...nuevos]); $("verPila").checked = true;
     const b = $("bloqueApilado"); if (b) b.open = true;
   }

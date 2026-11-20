@@ -125,7 +125,13 @@ def main(muestras):
         with pg.expect_download() as d:
             pg.click("#btnInforme")
         t2 = d.value.path().read_text(encoding="utf-8")
-        caso("sesion", "el informe lista lo quitado de la sesion (nombre escapado, SHA-256)", "Quitados de la sesion" in t2 and "imagen &lt;b&gt;x&lt;i&gt;" in t2 and h["sha256"] in t2 and "nota.txt" in t2)
+        caso("sesion", "el informe no menciona lo quitado de la sesion (no se analiza): ni seccion, ni nombres, ni su SHA-256",
+             "Quitados de la sesion" not in t2 and "nota.txt" not in t2 and "&lt;b&gt;x&lt;i&gt;" not in t2 and h["sha256"] not in t2 and '"retiradas"' not in t2)
+        with pg.expect_download() as d:
+            pg.click("#btnJson")
+        rj = json.loads(d.value.path().read_text(encoding="utf-8"))
+        caso("sesion", "control: el registro JSON descargable si conserva las retiradas (nombre y SHA-256)",
+             any(x["nombre"] == "nota.txt" for x in rj["retiradas"]) and any(x["sha256"] == h["sha256"] for x in rj["retiradas"]), [x["nombre"] for x in rj["retiradas"]])
         # ayuda
         pg.click("#btnAyuda"); pg.wait_for_timeout(200)
         ay = pg.evaluate("() => ({ visible: !document.getElementById('ayuda').hidden, txt: document.getElementById('ayudaCuerpo').textContent, origen: document.getElementById('ayudaOrigen').textContent })")
