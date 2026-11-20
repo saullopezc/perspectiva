@@ -267,12 +267,17 @@ def main(img1, img2, video):
         caso("apilado", "seguir puntos: copia desplazada (+4,-3) encontrada con error < 0.25 px", err < 0.25, f"error max {err:.3f} px · {texto('#infoSeguir')}")
         poner("#alinPila", "subpixel"); pg.click("#btnSeguirApilar"); pg.wait_for_timeout(600)
         caso("apilado", "seguir y apilar -> pila con la referencia y los seguidos", texto("#nPila").startswith("2 en pila") and pg.is_checked("#verPila"), texto("#nPila"))
-        for m in ["mediana", "recortada"]:
-            esperar(); poner("#modoPila", m); caso("apilado", f"mezcla {m} cambia la salida o es igual con 2", esperar() is not None, m)
         # con la mezcla "recortada" el subconjunto puede dar legitimamente el mismo valor (si casi todos los fotogramas
         # son iguales, descartar min y max deja ese valor): el efecto de "nitidos %" se mide con la media
         poner("#modoPila", "media")
         pg.click("#btnApilarTodos"); n_p = int(texto("#nPila").split()[0]); antes = esperar()
+        # la mezcla elegida tiene que llegar a la salida. Con 2 fotogramas la mediana y la recortada SON la media, asi que
+        # se mide con la pila completa; volver a "media" debe dar la salida de partida (el cambio viene de la mezcla)
+        hm = {}
+        for m in ["mediana", "recortada", "media"]:
+            poner("#modoPila", m); hm[m] = esperar()
+        caso("apilado", f"mezcla mediana y recortada cambian la salida respecto a la media ({n_p} en pila)",
+             n_p >= 3 and hm["mediana"] != antes and hm["recortada"] != antes and hm["media"] == antes, f"media {antes} · {hm}")
         poner("#mejoresPila", "50"); despues = esperar()
         sel = pg.evaluate("() => { const u = usados(ultimaPlana), todos = pila.map(p => p.nitidez).sort((a, b) => b - a); return { k: u.length, minUsado: Math.min(...u.map(p => p.nitidez)), corte: todos[u.length - 1] }; }")
         caso("apilado", "usar los mas nitidos (50%): usa ceil(n/2), los de mayor nitidez, y la media cambia",
