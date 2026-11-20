@@ -15,6 +15,9 @@ herramienta no los envía a ningún sitio.
 - **Publicada:** `python3 -I tools/publicar_web.py DESTINO` genera una carpeta estática (`index.html`, módulos, fuentes
   con su licencia, `LICENSE.txt`, `NOTICE.txt`, `version.json`, `LEEME.txt` y `SHA256SUMS`) para cualquier alojamiento de
   páginas estáticas. Sitio: <https://saullopezc.github.io/perspectiva/> (botón *Actualizar* para traer la última versión).
+- **Comprobar un despliegue:** `python3 -I tools/comprobar_despliegue.py [COMMIT]` (por defecto `origin/main`) espera a que
+  termine la CI de ese push, exige que el despliegue haya pasado y compara la versión del sitio con la que sale de
+  publicar ese commit en limpio. Mirar `version.json` sin más no basta: el despliegue puede seguir en cola.
 - **Ayuda:** botón *Ayuda* (o `F1`) dentro de la página; el mismo texto está en [docs/MANUAL_perspectiva.md](docs/MANUAL_perspectiva.md).
 
 ## Qué hace
