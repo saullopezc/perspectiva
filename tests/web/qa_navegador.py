@@ -133,7 +133,7 @@ def main(img1, img2, video):
             clic_img(x, y)
         ha = esperar()
         caso("geometria", "modo aristas (8 puntos) -> salida", ha is not None and "esquinas:" in pg.text_content("#tablaPts"), texto("#infoGeo"))
-        pg.click("label:has(input[name=modoGeo][value=esquinas])"); h0 = esperar()
+        pg.click("label:has(input[name=modoGeo][value=esquinas])"); esperar()
         pg.screenshot(path=str(SALIDA / "01_esquinas.png"), full_page=True)
 
         # ---------------- bloques plegables
@@ -268,7 +268,7 @@ def main(img1, img2, video):
         poner("#alinPila", "subpixel"); pg.click("#btnSeguirApilar"); pg.wait_for_timeout(600)
         caso("apilado", "seguir y apilar -> pila con la referencia y los seguidos", texto("#nPila").startswith("2 en pila") and pg.is_checked("#verPila"), texto("#nPila"))
         for m in ["mediana", "recortada"]:
-            antes = esperar(); poner("#modoPila", m); caso("apilado", f"mezcla {m} cambia la salida o es igual con 2", esperar() is not None, m)
+            esperar(); poner("#modoPila", m); caso("apilado", f"mezcla {m} cambia la salida o es igual con 2", esperar() is not None, m)
         # con la mezcla "recortada" el subconjunto puede dar legitimamente el mismo valor (si casi todos los fotogramas
         # son iguales, descartar min y max deja ese valor): el efecto de "nitidos %" se mide con la media
         poner("#modoPila", "media")
@@ -317,7 +317,6 @@ def main(img1, img2, video):
             pg.click("#btnCopiar"); pg.wait_for_timeout(600)
             tipos = pg.evaluate("async () => { try { return (await navigator.clipboard.read()).flatMap(i => i.types); } catch (e) { return ['ERROR ' + e.message]; } }")
             caso("portapapeles", "copiar salida como PNG", "image/png" in tipos, tipos)
-            n_antes = len(pg.eval_on_selector_all("#carrusel figure.hoja", "x => x"))
             e_antes = texto("#estado")
             pg.click("#btnPegar"); pg.wait_for_timeout(900)
             caso("portapapeles", "boton Pegar carga la imagen", "portapapeles_" in texto("#estado") and texto("#estado") != e_antes, texto("#estado"))

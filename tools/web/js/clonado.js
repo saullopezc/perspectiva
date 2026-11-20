@@ -187,7 +187,7 @@ function modelosClonado(pares, c, L, w, h) {
       else if ((r2[0] - p[0]) ** 2 + (r2[1] - p[1]) ** 2 < tol2) dentro.push([q, p]);
       else fuera.push([p, q]);
     }
-    const M = afinMC(dentro) || mejor, [[a, b, tx], [cc, d, ty]] = M;
+    const M = afinMC(dentro) || mejor, [[a, b], [cc, d]] = M;
     const desp = dentro.reduce((s, [p, q]) => [s[0] + q[0] - p[0], s[1] + q[1] - p[1]], [0, 0]).map((v) => v / dentro.length);
     const ncc = nccModelo(L, w, h, M, dentro);
     if (Math.hypot(desp[0], desp[1]) >= c.distMin && ncc >= c.nccMin)

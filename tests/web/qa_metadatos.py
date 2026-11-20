@@ -60,7 +60,7 @@ def main(insumos):
         caso("activacion", "sin archivos: herramientas de imagen inactivas", sin_imagen())
         caso("activacion", "sin archivos: panel de video oculto", not pg.is_visible("#bloqueVideo"))
         caso("activacion", "aceptar cualquier fichero (sin filtro accept)", pg.get_attribute("#archivo", "accept") in (None, ""), pg.get_attribute("#archivo", "accept"))
-        m = cargar("texto.txt")
+        cargar("texto.txt")
         caso("archivo", "texto: clase archivo", txt("#tMeta").startswith("archivo"), txt("#tMeta"))
         caso("archivo", "texto: herramientas de imagen siguen inactivas", sin_imagen() and nfuentes() == 0)
         caso("archivo", "texto: aviso visible", "no es una imagen" in txt("#avisoHerramientas"), txt("#avisoHerramientas"))
@@ -100,7 +100,7 @@ def main(insumos):
         m = cargar("crc_alterado.png")
         caso("png", "IHDR alterado: CRC detectado", "CRC no coinciden: IHDR@0x8" in m and "dimensiones" in m, valor(m, "CRC"))
         caso("png", "IHDR alterado: alto leido 64 (el escrito)", "IHDR: 96x64" in m, valor(m, "IHDR"))
-        r = ref["png_con_jpeg.png"]; m = cargar("png_con_jpeg.png")
+        r = ref["png_con_jpeg.png"]; cargar("png_con_jpeg.png")
         caso("png", "poliglota PNG+JPEG: boton del JPEG en su offset", f"@0x{r['jpeg_off']:x}" in txt("#incrustables"), txt("#incrustables"))
         n0 = nfuentes(); pg.locator("#incrustables button").first.click(); pg.wait_for_timeout(900)
         caso("png", "poliglota: el JPEG se abre como imagen con su EXIF", nfuentes() == n0 + 1 and valor(txt("#metaInfo"), "Make") == "FabricantePrueba", txt("#estado"))
@@ -124,7 +124,7 @@ def main(insumos):
         caso("zip", "docProps dc:creator", valor(m, "dc:creator") == r["dc:creator"], valor(m, "dc:creator"))
         caso("zip", "docProps cp:lastModifiedBy", valor(m, "cp:lastModifiedBy") == r["cp:lastModifiedBy"], valor(m, "cp:lastModifiedBy"))
         caso("zip", "comentario del ZIP", valor(m, "comentario del archivo") == r["comment"], valor(m, "comentario del archivo"))
-        m = cargar("imagen_renombrada.txt")
+        cargar("imagen_renombrada.txt")
         caso("archivo", "PNG con extension .txt: se abre como imagen (por contenido)", txt("#tMeta").startswith("imagen"), txt("#tMeta"))
 
         # ---------------- selector de archivo

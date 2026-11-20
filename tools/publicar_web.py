@@ -63,8 +63,10 @@ def main():
     # cada modulo se enlaza con la huella de su contenido (?v=...): el alojamiento cachea cada fichero por separado
     # (GitHub Pages: max-age=600) y, tras un despliegue, un index.html nuevo podia juntarse con modulos viejos
     idx = destino / "index.html"
-    html_idx = re.sub(r'<script src="([^"?]+)"></script>',
-                      lambda m: f'<script src="{m.group(1)}?v={hashlib.sha256((destino / m.group(1)).read_bytes()).hexdigest()[:12]}"></script>'
+    # solo se reescribe la etiqueta de apertura: el cierre no importa para la huella (y una regex de cierre
+    # nunca cubre todas sus variantes, como </script >)
+    html_idx = re.sub(r'<script src="([^"?]+)">',
+                      lambda m: f'<script src="{m.group(1)}?v={hashlib.sha256((destino / m.group(1)).read_bytes()).hexdigest()[:12]}">'
                       if (destino / m.group(1)).is_file() else m.group(0), idx.read_text(encoding="utf-8"))
     idx.write_text(html_idx, encoding="utf-8")
     # version del sitio (boton «Actualizar», js/version.js): huella de todo lo publicado, incrustada en index.html

@@ -11,7 +11,6 @@
 # Date:   2026-11-19
 # -----------------------------------------------------------------------------
 import base64
-import json
 import os
 import sys
 from datetime import datetime
@@ -108,13 +107,11 @@ def main(dir_img):
         pg.click("#btnAjustarSalida"); pg.wait_for_timeout(500)
         aj = pg.evaluate("() => { const w = document.getElementById('salidaWrap'); return { cw: cvS.width, ch: cvS.height, W: w.clientWidth, H: w.clientHeight }; }")
         caso("salida", "ajustar: la imagen entera cabe en la ventana", aj["cw"] <= aj["W"] and aj["ch"] <= aj["H"] and (aj["cw"] > 0.9 * aj["W"] or aj["ch"] > 0.9 * aj["H"]), aj)
-        wb = pg.locator("#salidaWrap").bounding_box(); mx, my = wb["x"] + wb["width"] * 0.3, wb["y"] + wb["height"] * 0.4
-        antes = pg.evaluate("([mx, my]) => { const r = document.getElementById('salidaWrap').getBoundingClientRect(), z = cvS.width / limpia.width; return { u: (mx - r.left - vistaSalida.x) / z, v: (my - r.top - vistaSalida.y) / z, z }; }", [mx, my])
+        wb = pg.locator("#salidaWrap").bounding_box()
         cab = pg.evaluate("() => { const w = document.getElementById('salidaWrap'); return { y: vistaSalida.y, centrado: (w.clientHeight - cvS.height) / 2 }; }")
         caso("salida", "si la imagen cabe en una dimension, queda centrada en ella", abs(cab["y"] - cab["centrado"]) < 1, cab)
         mx, my = wb["x"] + wb["width"] * 0.5, wb["y"] + wb["height"] * 0.5
         pg.mouse.move(mx, my); pg.mouse.wheel(0, -120); pg.wait_for_timeout(500); pg.mouse.wheel(0, -120); pg.wait_for_timeout(500)  # que desborde en las dos
-        antes = pg.evaluate("([mx, my]) => { const r = document.getElementById('salidaWrap').getBoundingClientRect(), z = cvS.width / limpia.width; return { u: (mx - r.left - vistaSalida.x) / z, v: (my - r.top - vistaSalida.y) / z, z }; }", [mx, my])
         mx2, my2 = wb["x"] + wb["width"] * 0.4, wb["y"] + wb["height"] * 0.45
         antes = pg.evaluate("([mx, my]) => { const r = document.getElementById('salidaWrap').getBoundingClientRect(), z = cvS.width / limpia.width; return { u: (mx - r.left - vistaSalida.x) / z, v: (my - r.top - vistaSalida.y) / z, z }; }", [mx2, my2])
         mx, my = mx2, my2

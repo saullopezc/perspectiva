@@ -11,13 +11,11 @@
 # Modified By:   Saul López
 # Modified Date: 2026-11-19
 # -----------------------------------------------------------------------------
-import io
 import json
 import os
 import subprocess
 import sys
 import zipfile
-import zlib
 from pathlib import Path
 
 from PIL import Image, PngImagePlugin

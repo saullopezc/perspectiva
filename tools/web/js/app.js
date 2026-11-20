@@ -63,7 +63,7 @@ async function cargarArchivoSinAviso(f) {
   const o = document.createElement("option"); o.value = archivos.length; archivos.push(A); $("selArchivo").appendChild(o);
   const esVideo = (f.type || "").startsWith("video/") || (["MP4/ISO-BMFF", "MKV/WebM"].includes(analisis.tipo) && !/heic|avif/i.test(f.name));
   if (esVideo) {
-    const url = URL.createObjectURL(new Blob([f], { type: f.type || "application/octet-stream" })) // referencia al File: sin copiar el buffer;
+    const url = URL.createObjectURL(new Blob([f], { type: f.type || "application/octet-stream" })); // referencia al File: sin copiar el buffer;
     A.clase = "video"; A.video = videos.length; o.textContent = `[video] ${A.nombre}`;
     videos.push({ nombre: f.name, sha256: sha, url, analisis, archivo: A });
     const ov = document.createElement("option"); ov.value = videos.length - 1; ov.textContent = f.name; $("selVideo").appendChild(ov);

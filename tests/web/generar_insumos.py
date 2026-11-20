@@ -32,6 +32,11 @@ FUENTES_JS = RAIZ / "tools" / "web" / "fuentes" / "fuentes_libres.js"
 TMP = Path(tempfile.mkdtemp(prefix="insumos_"))
 
 
+def guardar_json(datos, ruta, **kw):  # cierra el fichero aunque falle la serializacion
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump(datos, f, **kw)
+
+
 def fuente(familia, tam):
     """Fuente libre incluida en la herramienta (base64 en fuentes_libres.js)."""
     lista = json.loads(re.search(r"RP\.FUENTES_LIBRES = (\[.*\]);", FUENTES_JS.read_text(encoding="utf-8"), re.S).group(1))
@@ -114,13 +119,13 @@ def muestras(d):
     p = camara(30.0, 15.0, 900.0, 20, 35, 60.0, 400, 300)
     esq = [p(0, 0), p(30, 0), p(30, 15), p(0, 15)]
     s = proyectar(pl.resize((432, 216)), esq, 800, 600); s.save(d / "sintetica_sat_persp.png")
-    json.dump({"esquinas_SI_SD_ID_II": esq, "franja_FI": p(0, 0.215 * 15), "franja_FD": p(30, 0.215 * 15), "f": 900, "giro_grados": [20, 35],
-               "fuente": "rotulo sintetico (tests/web/generar_insumos.py)"}, open(d / "sintetica_sat_persp.json", "w"), indent=1)
+    guardar_json({"esquinas_SI_SD_ID_II": esq, "franja_FI": p(0, 0.215 * 15), "franja_FD": p(30, 0.215 * 15), "f": 900, "giro_grados": [20, 35],
+               "fuente": "rotulo sintetico (tests/web/generar_insumos.py)"}, d / "sintetica_sat_persp.json", indent=1)
     for k in (2, 6, 10, 14):
         s.resize((800 // k, 600 // k), Image.BOX).save(d / f"sintetica_x{k}.png")
-        json.dump({"escala": k, "esquinas_SI_SD_ID_II": [[x / k, y / k] for x, y in esq]}, open(d / f"sintetica_x{k}.json", "w"))
+        guardar_json({"escala": k, "esquinas_SI_SD_ID_II": [[x / k, y / k] for x, y in esq]}, d / f"sintetica_x{k}.json")
     s.resize((800 // 6, 600 // 6), Image.BOX).filter(ImageFilter.GaussianBlur(1.2)).save(d / "sintetica_x6_gauss1.2.png")
-    json.dump({"escala": 6, "sigma": 1.2, "esquinas_SI_SD_ID_II": [[x / 6, y / 6] for x, y in esq]}, open(d / "sintetica_x6_gauss1.2.json", "w"))
+    guardar_json({"escala": 6, "sigma": 1.2, "esquinas_SI_SD_ID_II": [[x / 6, y / 6] for x, y in esq]}, d / "sintetica_x6_gauss1.2.json")
     # dos "fotos": el rotulo sobre un fondo con textura, una casi frontal y otra algo girada
     proyectar(pl, [(128, 92), (612, 96), (610, 330), (126, 326)], 738, 369, fondo(738, 369, 1)).save(d / "muestra_b.png")
     proyectar(rotulo().transpose(Image.FLIP_TOP_BOTTOM).transpose(Image.FLIP_TOP_BOTTOM), [(150, 120), (520, 150), (505, 330), (140, 300)], 640, 480, fondo(640, 480, 2)).save(d / "muestra_a.png")
@@ -148,22 +153,22 @@ def integridad(d, base):
     parche = rotulo().convert("L").convert("RGB").crop((60, 60, 290, 162))
     rect = [430, 150, 430 + parche.width, 150 + parche.height]
     m = b1.copy(); m.paste(parche, rect[:2]); m.save(d / "montaje_q70.jpg", quality=70)
-    json.dump({"rect_pegado_x0y0x1y1": rect, "calidad": 70}, open(d / "montaje_q70.json", "w"))
+    guardar_json({"rect_pegado_x0y0x1y1": rect, "calidad": 70}, d / "montaje_q70.json")
     # mapa de ruido: ruido gaussiano sigma 2 en toda la imagen y sigma 8 en una zona (PNG, sin perdida); control: sigma 2 en toda
     # base sin ruido propio (degradado + rotulo): si el fondo ya trae ruido distinto del rotulo, el mapa compara contenidos
-    lisa = Image.new("RGB", im.size); gy, gx = np.mgrid[0:im.height, 0:im.width]
+    gy, gx = np.mgrid[0:im.height, 0:im.width]
     lisa = np.stack([90 + 60 * np.sin(gx / 90.0), 110 + 40 * np.cos(gy / 70.0), 130 + 30 * np.sin((gx + gy) / 120.0)], -1).astype(np.float32)
     lisa = np.asarray(proyectar(rotulo(), [(128, 92), (612, 96), (610, 330), (126, 326)], im.width, im.height, Image.fromarray(lisa.clip(0, 255).astype(np.uint8))), np.float32)
     r = np.random.default_rng(7); a = lisa; zr = [96, 64, 352, 256]
     ruido = r.normal(0, 2, a.shape); ruido[zr[1]:zr[3], zr[0]:zr[2]] = r.normal(0, 8, (zr[3] - zr[1], zr[2] - zr[0], 3))
     I.fromarray((a + ruido).clip(0, 255).astype(np.uint8)).save(d / "ruido_montaje.png")
     I.fromarray((a + r.normal(0, 2, a.shape)).clip(0, 255).astype(np.uint8)).save(d / "ruido_control.png")
-    json.dump({"rect_x0y0x1y1": zr, "sigma_fuera": 2, "sigma_dentro": 8}, open(d / "ruido_montaje.json", "w"))
+    guardar_json({"rect_x0y0x1y1": zr, "sigma_fuera": 2, "sigma_dentro": 8}, d / "ruido_montaje.json")
     # JPEG ghost: una zona comprimida antes a q60, pegada y todo guardado a q95; control: todo guardado solo a q95
     b = io.BytesIO(); im.save(b, "JPEG", quality=60); q60 = I.open(io.BytesIO(b.getvalue())).convert("RGB")
     zg = [192, 96, 448, 288]; g = im.copy(); g.paste(q60.crop(zg), zg[:2]); g.save(d / "ghost_montaje.jpg", quality=95)
     im.save(d / "ghost_control.jpg", quality=95)
-    json.dump({"rect_x0y0x1y1": zg, "calidad_previa": 60, "calidad_final": 95}, open(d / "ghost_montaje.json", "w"))
+    guardar_json({"rect_x0y0x1y1": zg, "calidad_previa": 60, "calidad_final": 95}, d / "ghost_montaje.json")
     ed = im.copy(); ImageDraw.Draw(ed).rectangle([130, 120, 600, 250], fill=(240, 240, 240))
     exif = I.Exif(); exif[0x010f] = "QA-integridad"
     for nombre, principal, mini in (("miniatura_distinta", ed, im), ("miniatura_coincide", ed, ed)):
@@ -208,7 +213,7 @@ def clonado(d):
         im = base.copy(); im.paste(trozo, destino); im.save(d / f"clonado_{nombre}.jpg", quality=90)
         verdad[nombre] = {"origen_x0y0x1y1": [origen[0], origen[1], origen[0] + pw, origen[1] + ph],
                           "destino_x0y0x1y1": [destino[0], destino[1], destino[0] + tw, destino[1] + th], "giro": giro, "escala": escala}
-    json.dump(verdad, open(d / "clonado.json", "w"), indent=1)
+    guardar_json(verdad, d / "clonado.json", indent=1)
 
 
 def superres(d):
@@ -231,7 +236,7 @@ def superres(d):
         nombre = f"sr_{i:02d}.png"; Image.fromarray(c).save(d / nombre)
         x0, y0, x1, y1 = (M - sx) / F, (M - sy) / F, (M + verdad.width - sx) / F, (M + verdad.height - sy) / F
         meta["fotogramas"].append({"nombre": nombre, "desplazamiento_alta": [sx, sy], "esquinas_SI_SD_ID_II": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]})
-    json.dump(meta, open(d / "superres.json", "w"), indent=1)
+    guardar_json(meta, d / "superres.json", indent=1)
 
 
 def estructura(d, base):

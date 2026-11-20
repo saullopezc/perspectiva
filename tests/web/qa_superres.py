@@ -14,7 +14,6 @@
 # Date:   2026-11-19
 # -----------------------------------------------------------------------------
 import base64
-import io
 import json
 import os
 import sys
