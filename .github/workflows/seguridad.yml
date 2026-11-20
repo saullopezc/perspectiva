@@ -7,7 +7,9 @@ name: seguridad
 
 on:
   push:
+    branches: [main]   # gitflow: el resto de ramas se prueba en su pull request
   pull_request:
+    branches: [main, develop]   # proteccion de rama: no se fusiona sin pasar estos trabajos
   schedule:
     - cron: "17 6 * * 1"   # cada lunes: reglas de CodeQL y de credenciales actualizadas
   workflow_dispatch:
