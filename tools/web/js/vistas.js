@@ -6,6 +6,8 @@
 // Usa el estado de app.js (cvS, limpia, procesar).
 // Author: Saul López
 // Date:   2026-11-19
+// Modified By: Saul López
+// Modified Date: 2026-11-27
 // -----------------------------------------------------------------------------
 "use strict";
 
@@ -42,15 +44,16 @@ wrapSalida.addEventListener("wheel", (e) => {
   zoomSalidaEn(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
 let arrastreSalida = null;
-wrapSalida.addEventListener("mousedown", (e) => {
-  if (e.button !== 0 || !limpia) return;
+wrapSalida.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || !e.isPrimary || !limpia) return;
   arrastreSalida = { mx: e.clientX, my: e.clientY, x: vistaSalida.x, y: vistaSalida.y }; wrapSalida.classList.add("arrastrando"); e.preventDefault();
 });
-window.addEventListener("mousemove", (e) => {
-  if (!arrastreSalida) return;
+window.addEventListener("pointermove", (e) => {
+  if (!arrastreSalida || !e.isPrimary) return;
   vistaSalida.x = arrastreSalida.x + e.clientX - arrastreSalida.mx; vistaSalida.y = arrastreSalida.y + e.clientY - arrastreSalida.my; colocarSalida();
 });
-window.addEventListener("mouseup", () => { if (arrastreSalida) { arrastreSalida = null; wrapSalida.classList.remove("arrastrando"); } });
+const soltarSalida = () => { if (arrastreSalida) { arrastreSalida = null; wrapSalida.classList.remove("arrastrando"); } };
+window.addEventListener("pointerup", soltarSalida); window.addEventListener("pointercancel", soltarSalida);
 wrapSalida.addEventListener("dblclick", ajustarSalida);
 $("btnAjustarSalida").onclick = ajustarSalida;
 // plegar o desplegar el lienzo: la salida ocupa todo el espacio y se reencuadra

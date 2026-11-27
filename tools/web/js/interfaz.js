@@ -5,7 +5,7 @@
 // Author: Saul López
 // Date:   2026-11-13
 // Modified By: Saul López
-// Modified Date: 2026-11-19
+// Modified Date: 2026-11-27
 // -----------------------------------------------------------------------------
 "use strict";
 (() => {
@@ -49,7 +49,7 @@
 
   // redimensionar arrastrando el asa
   const asa = document.getElementById("asa");
-  asa.addEventListener("mousedown", (e) => {
+  asa.addEventListener("pointerdown", (e) => {
     e.preventDefault(); asa.classList.add("activo");
     const mover = (ev) => {
       const vertical = pref.dock === "left" || pref.dock === "right";
@@ -60,8 +60,8 @@
       }
       aplicar();
     };
-    const soltar = () => { asa.classList.remove("activo"); window.removeEventListener("mousemove", mover); window.removeEventListener("mouseup", soltar); };
-    window.addEventListener("mousemove", mover); window.addEventListener("mouseup", soltar);
+    const soltar = () => { asa.classList.remove("activo"); window.removeEventListener("pointermove", mover); window.removeEventListener("pointerup", soltar); window.removeEventListener("pointercancel", soltar); };
+    window.addEventListener("pointermove", mover); window.addEventListener("pointerup", soltar); window.addEventListener("pointercancel", soltar);
   });
 
   // el lienzo se redibuja al cambiar de tamano (panel, ventana, bloques plegados)

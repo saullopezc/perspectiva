@@ -4,10 +4,15 @@
 # con todos los bloques abiertos, en las cuatro posiciones del panel y a varios anchos
 # de ventana, lista cada elemento visible que se sale de su bloque (o del panel / area)
 # y cada contenedor con desplazamiento horizontal. Sin hallazgos = maqueta contenida.
+# En pantalla estrecha o baja (movil vertical y apaisado) el panel no se acopla: va
+# debajo del area; ahi se exige ademas que la pagina no se desplace en horizontal, que
+# el lienzo y la salida ocupen el ancho y que el panel quede debajo del area.
 #
 # Uso:  [QA_NAV=firefox] .venv-qa/bin/python tests/web/qa_maqueta.py IMAGEN
 # Author: Saul López
 # Date:   2026-11-19
+# Modified By: Saul López
+# Modified Date: 2026-11-27
 # -----------------------------------------------------------------------------
 import json
 import os
@@ -43,8 +48,21 @@ AUDITAR = """() => {
   for (const el of document.querySelectorAll("#panel, #panel .contenido, details.bloque, details.bloque > .cuerpo, #area, header"))
     if (!(filaPanel && el.matches("#panel .contenido")))
     if (visible(el) && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== "visible") out.push({ elemento: nombre(el).slice(0, 50), contenedor: "(desplazamiento horizontal)", sale_px: el.scrollWidth - el.clientWidth });
+  const doc = document.documentElement, W = doc.clientWidth;
+  // un control de la cabecera fuera de la ventana no se puede pulsar
+  for (const el of document.querySelectorAll("header > *")) { const b = el.getBoundingClientRect(); if (visible(el) && b.right > W + 1) out.push({ elemento: "header " + nombre(el).slice(0, 30), contenedor: "(fuera de la ventana)", sale_px: Math.round(b.right - W) }); }
+  if (doc.scrollWidth > doc.clientWidth + 1) out.push({ elemento: "pagina", contenedor: "(desplazamiento horizontal)", sale_px: doc.scrollWidth - doc.clientWidth });
   // quitar repetidos (un hijo de algo que ya se sale)
   const vistos = new Set(); return out.filter((x) => { const k = x.elemento + "|" + x.contenedor; if (vistos.has(k)) return false; vistos.add(k); return true; });
+}"""
+
+
+# solo en pantalla estrecha: la columna unica aprovecha el ancho y el panel va debajo del area
+COLUMNA = """() => {
+  const out = [], W = document.documentElement.clientWidth, r = (id) => document.getElementById(id).getBoundingClientRect();
+  for (const id of ["fuenteWrap", "salidaWrap", "panel"]) if (r(id).width < 0.85 * W) out.push({ elemento: "#" + id, contenedor: `(ancho ${Math.round(r(id).width)} de ${W} px)`, sale_px: Math.round(W - r(id).width) });
+  if (r("panel").top < r("area").bottom - 1) out.push({ elemento: "#panel", contenedor: "(no queda debajo de #area)", sale_px: Math.round(r("area").bottom - r("panel").top) });
+  return out;
 }"""
 
 
@@ -53,15 +71,17 @@ def main(imagen):
     resultados, total = {}, 0
     with sync_playwright() as p:
         nav = p.firefox.launch(headless=True) if NAV == "firefox" else p.chromium.launch(**({"executable_path": str(CHROME)} if CHROME.exists() else {}), headless=True)
-        for ancho, alto in ((1920, 1080), (1600, 1000), (1366, 768), (1100, 800)):
+        for ancho, alto in ((1920, 1080), (1600, 1000), (1366, 768), (1100, 800), (900, 700), (768, 1024), (390, 844), (360, 740), (844, 390)):
+            estrecha = ancho <= 820 or alto <= 520  # el mismo corte que la @media de perspectiva.html
             pg = nav.new_page(viewport={"width": ancho, "height": alto})
             pg.goto(HTML.as_uri()); pg.wait_for_timeout(1000)
             pg.set_input_files("#archivo", str(Path(imagen).resolve())); pg.wait_for_timeout(900)
             pg.evaluate("() => { F0().esquinas = [[100, 60], [500, 60], [500, 300], [100, 300]]; procesarYa(); }")
-            for lado in ("right", "left", "top", "bottom"):
-                pg.click(f"[data-dock={lado}]"); pg.wait_for_timeout(250)
+            for lado in ("movil",) if estrecha else ("right", "left", "top", "bottom"):
+                if not estrecha:
+                    pg.evaluate("(l) => document.querySelector(`[data-dock=${l}]`).click()", lado); pg.wait_for_timeout(250)  # aunque quede fuera de la ventana: eso lo informa AUDITAR
                 pg.evaluate("() => document.querySelectorAll('details').forEach(d => (d.open = true))"); pg.wait_for_timeout(250)
-                h = pg.evaluate(AUDITAR)
+                h = pg.evaluate(AUDITAR) + (pg.evaluate(COLUMNA) if estrecha else [])
                 resultados[f"{ancho}x{alto} panel {lado}"] = h; total += len(h)
                 print(f"{ancho}x{alto} panel {lado}: {len(h)} hallazgos")
                 for x in h[:12]:

@@ -5,7 +5,7 @@
 // Author: Saul López
 // Date:   2026-11-13
 // Modified By: Saul López
-// Modified Date: 2026-11-19
+// Modified Date: 2026-11-27
 // -----------------------------------------------------------------------------
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -374,17 +374,18 @@ function tablaPuntos() {
   tb.querySelectorAll("input").forEach((inp) => (inp.onchange = () => { P[+inp.dataset.i][+inp.dataset.k] = parseFloat(inp.value); dibujarFuente(); procesar(); }));
 }
 cvF.addEventListener("contextmenu", (e) => e.preventDefault());
-cvF.addEventListener("mousedown", (e) => {
-  const F = F0(); if (!F) return;
-  const [cx, cy] = posRaton(e), P = editables(F);
-  const cerca = P.findIndex(([x, y]) => { const [a, b] = aCanvas(x, y); return Math.hypot(a - cx, b - cy) < 12 * (devicePixelRatio || 1); });
+// eventos pointer: el mismo codigo sirve al raton, al dedo y al lapiz (el dedo, con un radio de agarre mayor)
+cvF.addEventListener("pointerdown", (e) => {
+  const F = F0(); if (!F || !e.isPrimary) return;
+  const [cx, cy] = posRaton(e), P = editables(F), radio = e.pointerType === "touch" ? 24 : 12;
+  const cerca = P.findIndex(([x, y]) => { const [a, b] = aCanvas(x, y); return Math.hypot(a - cx, b - cy) < radio * (devicePixelRatio || 1); });
   if (e.button === 0 && cerca >= 0) arrastrando = sel = cerca;
   else if (e.button === 0) clicPendiente = { cx, cy, ox: vista.ox, oy: vista.oy, movido: false }; // clic = punto; arrastrar = mover la vista
   else paneando = [cx, cy, vista.ox, vista.oy];
   dibujarFuente();
 });
-window.addEventListener("mousemove", (e) => {
-  if (!F0()) return;
+window.addEventListener("pointermove", (e) => {
+  if (!F0() || !e.isPrimary) return;
   const [cx, cy] = posRaton(e);
   if (arrastrando >= 0) { editables()[arrastrando] = aImg(cx, cy); dibujarFuente(); procesar(); }
   else if (clicPendiente) {
@@ -395,14 +396,17 @@ window.addEventListener("mousemove", (e) => {
   if (e.target === cvF) dibujarLupa(cx, cy);
 });
 let clicPendiente = null;
-window.addEventListener("mouseup", () => {
-  const c = clicPendiente, F = F0(); clicPendiente = null; cvF.style.cursor = "";
+function soltarLienzo(e) {
+  if (!e.isPrimary) return;
+  const c = e.type === "pointercancel" ? null : clicPendiente, F = F0(); clicPendiente = null; cvF.style.cursor = "";
   if (c && !c.movido && F) { // clic sin mover: anade un punto si caben mas
     const P = editables(F);
     if (P.length < maxPuntos()) { P.push(aImg(c.cx, c.cy)); if (modo() === "control") anotarReferencia(F); sel = P.length - 1; dibujarFuente(); procesar(); }
   }
   arrastrando = -1; paneando = null;
-});
+}
+window.addEventListener("pointerup", soltarLienzo);
+window.addEventListener("pointercancel", soltarLienzo);
 cvF.addEventListener("wheel", (e) => { e.preventDefault(); const [cx, cy] = posRaton(e); zoomEn(e.deltaY < 0 ? 1.2 : 1 / 1.2, cx, cy); }, { passive: false });
 window.addEventListener("keydown", (e) => {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) && e.target.type !== "range") return;
