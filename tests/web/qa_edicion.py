@@ -9,6 +9,8 @@
 #       DIR_IMAGENES: DIR_BASE/muestras de tests/web/generar_insumos.py
 # Author: Saul López
 # Date:   2026-11-19
+# Modified By: Saul López
+# Modified Date: 2026-11-27
 # -----------------------------------------------------------------------------
 import base64
 import os
@@ -101,6 +103,14 @@ def main(dir_img):
              abs((arr["dx"] - ox0) / arr["dpr"] - 120) < 2 and arr["puntos"] == 0, f"{(arr['dx'] - ox0) / arr['dpr']:.1f} px · puntos {arr['puntos']}")
         pg.mouse.click(cx, cy); espera()
         caso("lienzo", "control: un clic sin mover si anade un punto", pg.evaluate("() => F0().esquinas.length") == 1)
+        # con el dedo (eventos pointer de tipo touch): se agarra el punto a 14 px de distancia (con raton seria demasiado lejos) y se arrastra
+        dedo = pg.evaluate("""() => { const r = cvF.getBoundingClientRect(), dp = devicePixelRatio || 1, P = F0().esquinas, [u, v] = aCanvas(...P[0]);
+            const x = r.left + u / dp, y = r.top + v / dp, ev = (t, dx, dy) => cvF.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: x + dx, clientY: y + dy,
+              pointerType: 'touch', pointerId: 7, isPrimary: true, button: t === 'pointermove' ? -1 : 0, buttons: t === 'pointerup' ? 0 : 1 }));
+            const antes = P[0].slice(); ev('pointerdown', 10, 10); ev('pointermove', 30, 25); ev('pointermove', 50, 40); ev('pointerup', 50, 40);
+            const [ex, ey] = aImg((x + 50 - r.left) * dp, (y + 40 - r.top) * dp);
+            return { puntos: P.length, err: Math.hypot(P[0][0] - ex, P[0][1] - ey), movido: Math.hypot(P[0][0] - antes[0], P[0][1] - antes[1]) }; }""")
+        caso("lienzo", "tactil: arrastrar con el dedo mueve el punto agarrado y no anade otro", dedo["puntos"] == 1 and dedo["movido"] > 5 and dedo["err"] < 1.5, dedo)
 
         # ---------------- E: ventana de la salida
         pg.click("#btnReiniciar"); modo("completa"); pg.wait_for_function("() => limpia", timeout=5000)

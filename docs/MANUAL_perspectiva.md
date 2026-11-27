@@ -2,7 +2,7 @@
 id: manual-perspectiva
 tipo: manual
 proyecto: Perspectiva (tools/web)
-actualizado: 2026-11-19
+actualizado: 2026-11-27
 estado: vigente
 version: 2.0
 clasificacion: C1
@@ -56,6 +56,11 @@ comparar, y el botón lo dice.
 | Lienzo y geometría | la imagen original; aquí se elige qué zona se trabaja. Arrastrar mueve la imagen; un clic marca un punto |
 | Salida | el resultado con los ajustes aplicados, en un marco fijo: rueda para ampliar hacia el cursor, arrastrar para moverlo, doble clic para verlo entero |
 | Panel lateral | bloques plegables con los controles; cada bloque con controles tiene **↺** para volver a sus valores por defecto |
+
+En el **móvil** o en una tableta en vertical (ventana de 820 px de ancho o menos, o de 520 px de alto o menos) todo va en una
+columna que se desplaza entera: carrusel, lienzo y salida arriba y el panel debajo; su posición no se elige. Con el dedo,
+tocar marca un punto, arrastrar un punto lo mueve y arrastrar fuera de los puntos mueve la imagen; para ampliar están los
+botones **＋**/**－** del lienzo y el deslizador de zoom de la salida.
 
 ## 4. Flujo de trabajo recomendado
 
